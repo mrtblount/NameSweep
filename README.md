@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NameSweep
 
-## Getting Started
+Instant brand name availability checker for domains, social media, trademarks, and SEO collision detection.
 
-First, run the development server:
+## Features
 
+- **Domain Availability**: Checks .com, .co, .io, .net domains with premium domain detection
+- **Social Media Handles**: Verifies availability on X (Twitter), Instagram, and YouTube
+- **USPTO Trademark Search**: Scans for existing US trademarks
+- **SEO Collision Analysis**: Shows top 3 Google results with domain authority indicators
+- **Smart Caching**: 24-hour cache for faster repeated searches
+- **Modern UI**: Built with Next.js 14 and shadcn/ui components
+
+## Tech Stack
+
+- **Framework**: Next.js 14 with TypeScript
+- **UI**: shadcn/ui components with Tailwind CSS
+- **API**: Vercel Edge Functions
+- **Caching**: Vercel KV
+- **APIs Used**:
+  - GoDaddy Domain Availability API
+  - OpenAI API (GPT-4o-mini for SEO analysis)
+
+## Setup
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/namesweep.git
+cd namesweep
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Add your API keys to `.env.local`:
+```env
+GODADDY_API_KEY=your_godaddy_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
 
-## Learn More
+5. Run the development server:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API Keys Required
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **GoDaddy API**: Get your key from [developer.godaddy.com](https://developer.godaddy.com/)
+- **OpenAI API**: Get your key from [platform.openai.com](https://platform.openai.com/api-keys)
+- **Vercel KV**: Automatically configured when deploying to Vercel
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Deploy to Vercel with one click:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/namesweep)
+
+Remember to add your environment variables in the Vercel dashboard.
+
+## How It Works
+
+1. Enter a brand name in the search field
+2. The app checks availability across:
+   - Domain TLDs (.com, .co, .io, .net)
+   - Social media platforms (X, Instagram, YouTube)
+   - USPTO trademark database
+   - Google search results for SEO conflicts
+3. Results are cached for 24 hours for faster subsequent searches
+4. Get instant recommendations based on availability
+
+## Status Indicators
+
+- ✅ **Available**: Free to register/use
+- ⚠️ **Premium**: Domain available but expensive (≥$250)
+- ❌ **Taken**: Already registered/in use
+
+## License
+
+MIT

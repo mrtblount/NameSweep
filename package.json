@@ -1,5 +1,5 @@
 {
-  "name": "productaday-skeleton",
+  "name": "namesweep",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,13 +9,19 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.53.0",
+    "@radix-ui/react-label": "^2.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@stripe/stripe-js": "^7.8.0",
+    "@supabase/supabase-js": "^2.53.1",
+    "@vercel/kv": "^3.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.536.0",
     "next": "15.4.5",
+    "openai": "^5.12.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "stripe": "^18.4.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
@@ -23,6 +29,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "eslint-config-next": "^15.4.6",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.6",
     "typescript": "^5"
