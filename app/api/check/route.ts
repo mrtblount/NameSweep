@@ -4,6 +4,7 @@ import { checkSocials } from "@/lib/helpers/socials";
 import { checkSocials as checkSocialsMock } from "@/lib/helpers/socials-mock";
 import { checkTrademark } from "@/lib/helpers/trademark";
 import { seoSummary } from "@/lib/helpers/seo";
+import { generateRecommendations } from "@/lib/helpers/recommendations";
 import { getCached } from "@/lib/helpers/cache";
 
 export const runtime = "edge";
@@ -47,12 +48,24 @@ export async function GET(request: NextRequest) {
           seoSummary(slug)
         ]);
         
+        // Generate recommendations based on availability
+        const recommendations = await generateRecommendations(
+          slug,
+          {
+            domains: domainsResult.domains,
+            socials,
+            tm,
+            premium: domainsResult.premium
+          }
+        );
+        
         return {
           domains: domainsResult.domains,
           socials,
           tm,
           seo,
-          premium: domainsResult.premium
+          premium: domainsResult.premium,
+          recommendations
         };
       },
       86400

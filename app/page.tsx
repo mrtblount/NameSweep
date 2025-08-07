@@ -17,6 +17,10 @@ interface CheckResult {
   tm: { status: string; serial: string | null };
   seo: Array<{ title: string; root: string; da: string }>;
   premium: boolean;
+  recommendations?: {
+    names: string[];
+    analysis: string;
+  };
 }
 
 export default function Home() {
@@ -25,8 +29,10 @@ export default function Home() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState("");
 
-  const handleSearch = async () => {
-    if (!brandName.trim() || brandName.length < 2) {
+  const handleSearch = async (searchName?: string) => {
+    const nameToSearch = searchName || brandName;
+    
+    if (!nameToSearch.trim() || nameToSearch.length < 2) {
       setError("Please enter at least 2 characters");
       return;
     }
@@ -36,8 +42,13 @@ export default function Home() {
     setResult(null);
 
     try {
-      const res = await fetch(`/api/check?name=${encodeURIComponent(brandName)}`);
+      const res = await fetch(`/api/check?name=${encodeURIComponent(nameToSearch)}`);
       const data = await res.json();
+      
+      // Update the input field if searching alternative name
+      if (searchName) {
+        setBrandName(searchName);
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to check availability");
@@ -74,7 +85,7 @@ export default function Home() {
                 className="text-lg h-12"
               />
               <Button 
-                onClick={handleSearch} 
+                onClick={() => handleSearch()} 
                 disabled={loading}
                 size="lg"
                 className="h-12 px-8"
@@ -257,11 +268,15 @@ export default function Home() {
             {result && (
               <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800">
                 <CardHeader>
-                  <CardTitle>Recommendation</CardTitle>
+                  <CardTitle>AI Recommendations</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <p className="text-lg">
-                    {result.domains[".com"] === "✅" && result.tm.status === "none" ? (
+                    {result.recommendations?.analysis ? (
+                      <span className="font-semibold">
+                        {result.recommendations.analysis}
+                      </span>
+                    ) : result.domains[".com"] === "✅" && result.tm.status === "none" ? (
                       <span className="text-green-600 font-semibold">
                         Excellent choice! The .com domain is available and no conflicting trademarks found.
                       </span>
@@ -279,6 +294,26 @@ export default function Home() {
                       </span>
                     )}
                   </p>
+                  
+                  {result.recommendations?.names && result.recommendations.names.length > 0 && (
+                    <div className="pt-4 border-t">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        Try these alternative names (click to check):
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {result.recommendations.names.map((name, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSearch(name)}
+                            disabled={loading}
+                            className="px-4 py-2 bg-white dark:bg-gray-800 border-2 border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:border-purple-400 dark:hover:border-purple-500 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
