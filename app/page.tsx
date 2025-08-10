@@ -98,7 +98,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="section relative pt-32 pb-16 md:pb-24 dot-bg overflow-hidden">
+      <section className="section relative pt-32 pb-8 md:pb-12 dot-bg overflow-hidden">
         <div className="absolute inset-0 mesh-gradient opacity-30"></div>
         <div className="container relative">
           <div className="text-center max-w-4xl mx-auto">
@@ -122,7 +122,7 @@ export default function Home() {
 
 
       {/* Search Section */}
-      <section className="section" id="search">
+      <section className="py-8 sm:py-12" id="search">
         <div className="container">
           <div className="max-w-4xl mx-auto">
             {/* Mode Toggle */}
