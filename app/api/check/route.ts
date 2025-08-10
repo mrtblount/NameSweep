@@ -1,71 +1,90 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkDomains } from "@/lib/helpers/domains";
-import { checkSocials } from "@/lib/helpers/socials";
-import { checkSocials as checkSocialsMock } from "@/lib/helpers/socials-mock";
+import { checkMultipleDomainsViaDNS } from "@/lib/helpers/domains-dns-check";
+import { checkSocialsBalanced } from "@/lib/helpers/socials-balanced";
 import { checkTrademark } from "@/lib/helpers/trademark";
 import { seoSummary } from "@/lib/helpers/seo";
 import { generateRecommendations } from "@/lib/helpers/recommendations";
 import { getCached } from "@/lib/helpers/cache";
+import { parseUserInput, getTLDsToCheck } from "@/lib/helpers/parse-input";
 
 export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const name = searchParams.get("name");
+    const rawInput = searchParams.get("name");
     
-    if (!name || name.length < 2 || name.length > 50) {
+    if (!rawInput || rawInput.length < 2) {
       return NextResponse.json(
         { error: "Invalid name parameter" },
         { status: 400 }
       );
     }
     
-    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Parse the user input
+    const parsedInput = parseUserInput(rawInput);
+    
+    // If input was too long after parsing
+    if (parsedInput.name.length > 63) {
+      return NextResponse.json(
+        { error: "Domain name too long (max 63 characters)" },
+        { status: 400 }
+      );
+    }
+    
+    const slug = parsedInput.name;
     const cacheKey = `namesweep:${slug}`;
     
     const result = await getCached(
       cacheKey,
       async () => {
-        // Try real social checks first, fallback to mock if they fail
-        let socials;
-        try {
-          socials = await checkSocials(slug);
-          // If all return available, likely the real check failed, use mock
-          if (socials.x.status === "✅" && 
-              socials.instagram.status === "✅" && 
-              socials.youtube.status === "✅") {
-            socials = await checkSocialsMock(slug);
-          }
-        } catch (error) {
-          console.log("Social check failed, using mock:", error);
-          socials = await checkSocialsMock(slug);
-        }
+        // Get TLDs to check, prioritizing user's choice
+        const extendedCheck = searchParams.get("extended") === "true";
+        const tlds = getTLDsToCheck(parsedInput, extendedCheck);
         
-        const [domainsResult, tm, seo] = await Promise.all([
-          checkDomains(slug),
+        // Check domains and social media in parallel
+        const [domainResults, socials, tm, seo] = await Promise.all([
+          checkMultipleDomainsViaDNS(slug, tlds),
+          checkSocialsBalanced(slug),
           checkTrademark(slug),
           seoSummary(slug)
         ]);
+        
+        // Format domains for response
+        const domains: Record<string, string> = {};
+        let hasPremium = false;
+        
+        Object.entries(domainResults).forEach(([tld, result]) => {
+          domains[tld] = result.status;
+          if (result.premium) hasPremium = true;
+        });
         
         // Generate recommendations based on availability
         const recommendations = await generateRecommendations(
           slug,
           {
-            domains: domainsResult.domains,
+            domains,
             socials,
             tm,
-            premium: domainsResult.premium
+            premium: hasPremium
           }
         );
         
         return {
-          domains: domainsResult.domains,
+          domains,
           socials,
           tm,
           seo,
-          premium: domainsResult.premium,
-          recommendations
+          premium: hasPremium,
+          recommendations,
+          // Include parsing metadata
+          parsed: {
+            cleanName: slug,
+            originalInput: rawInput,
+            wasConverted: parsedInput.isSentence,
+            hadExtension: parsedInput.hasExtension,
+            requestedExtension: parsedInput.extension
+          }
         };
       },
       86400

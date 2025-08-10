@@ -1,8 +1,13 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAIClient = () => {
+  if (!process.env.OPENAI_API_KEY) {
+    return null;
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+};
 
 export interface GeneratedName {
   name: string;
@@ -35,11 +40,17 @@ Requirements:
 - No offensive or inappropriate content
 - Consider domain availability (prefer shorter, unique names)
 
-Return as JSON array with format:
-[{"name": "BrandName", "style": "coined", "rationale": "One sentence why this works"}]`;
+Return as a JSON object with a "names" array:
+{"names": [{"name": "BrandName", "style": "coined", "rationale": "One sentence why this works"}]}`;
 
 export async function generateNames(options: GenerationOptions): Promise<GeneratedName[]> {
   try {
+    const openai = getOpenAIClient();
+    if (!openai) {
+      console.warn('OpenAI API key not configured');
+      return [];
+    }
+
     const userPrompt = `
 Business: ${options.businessDescription}
 ${options.industry ? `Industry: ${options.industry}` : ''}
@@ -78,7 +89,8 @@ Generate 40-60 name candidates.`;
       }));
   } catch (error) {
     console.error('Name generation error:', error);
-    throw new Error('Failed to generate names');
+    // Return empty array instead of throwing to allow graceful handling
+    return [];
   }
 }
 
@@ -88,6 +100,11 @@ export async function scoreNameFit(
   checkResults: any
 ): Promise<{ score: number; rationale: string }> {
   try {
+    const openai = getOpenAIClient();
+    if (!openai) {
+      return { score: 50, rationale: 'OpenAI not configured' };
+    }
+
     const prompt = `
 Analyze this brand name for the business and provide a fit score (0-100).
 

@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, TrendingUp, Shield, Zap, ArrowRight, Check, X, Sparkles, Star, Rocket, MessageSquare } from "lucide-react";
+import { Search, TrendingUp, Shield, Zap, ArrowRight, Check, X, Sparkles, Star, Rocket, MessageSquare, Info } from "lucide-react";
 import ChatMode from "@/components/ChatMode";
 
 interface CheckResult {
   domains: Record<string, string>;
   socials: {
-    x: { status: string; url?: string };
-    instagram: { status: string; url?: string };
-    youtube: { status: string; url?: string };
+    x: { status: string; url?: string; checkRequired?: boolean };
+    instagram: { status: string; url?: string; checkRequired?: boolean };
+    youtube: { status: string; url?: string; checkRequired?: boolean };
+    tiktok?: { status: string; url?: string; checkRequired?: boolean };
+    substack?: { status: string; urls?: string[]; checkRequired?: boolean };
   };
   tm: { status: string; serial: string | null };
   seo: Array<{ title: string; root: string; da: string }>;
@@ -17,6 +19,13 @@ interface CheckResult {
   recommendations?: {
     names: string[];
     analysis: string;
+  };
+  parsed?: {
+    cleanName: string;
+    originalInput: string;
+    wasConverted: boolean;
+    hadExtension: boolean;
+    requestedExtension?: string;
   };
 }
 
@@ -288,6 +297,22 @@ export default function Home() {
         <section className="section py-16">
           <div className="container px-6 md:px-8">
             <div className="grid gap-6 max-w-6xl mx-auto">
+              {/* Show conversion notice if input was modified */}
+              {result?.parsed?.wasConverted && (
+                <div className="card p-4 bg-ns-accent/10 border border-ns-accent/30" data-reveal>
+                  <div className="flex items-start gap-3">
+                    <Info className="w-5 h-5 text-ns-accent mt-0.5" />
+                    <div>
+                      <p className="text-sm text-ns-text">
+                        <strong>Converted to domain name:</strong> {result.parsed.cleanName}
+                      </p>
+                      <p className="text-xs text-ns-mute mt-1">
+                        Original: &ldquo;{result.parsed.originalInput}&rdquo;
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Domains */}
               <div className="card p-6 card-hover" data-reveal>
                 <h3 className="text-xl font-bold text-ns-text mb-4 flex items-center gap-2">
@@ -314,7 +339,7 @@ export default function Home() {
                         }`}
                       >
                         <div className="text-2xl mb-1">{status}</div>
-                        <div className="font-bold text-ns-text">{tld}</div>
+                        <div className="font-bold text-ns-text">{result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}{tld}</div>
                         {status === "⚠️" && (
                           <div className="text-xs text-yellow-500 mt-1">Premium</div>
                         )}
@@ -330,40 +355,69 @@ export default function Home() {
                   <Sparkles className="w-5 h-5 text-ns-accent animate-pulseGlow" />
                   Social Media Handles
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {loading ? (
                     <>
-                      {[1,2,3].map((i) => (
+                      {[1,2,3,4,5].map((i) => (
                         <div key={i} className="h-20 bg-white/5 rounded-xl loading-pulse"></div>
                       ))}
                     </>
                   ) : result ? (
                     <>
                       {Object.entries({
-                        'X (Twitter)': result.socials.x,
+                        'X': result.socials.x,
                         'Instagram': result.socials.instagram,
-                        'YouTube': result.socials.youtube
+                        'YouTube': result.socials.youtube,
+                        'TikTok': result.socials.tiktok,
+                        'Substack': result.socials.substack
                       }).map(([platform, data]) => (
                         <div
                           key={platform}
                           className={`p-4 rounded-xl border transition-all duration-300 ease-out hover:scale-105 hover-lift ${
-                            data.status === "✅" 
-                              ? "status-available" 
-                              : "status-taken"
+                            data?.status === '✅' 
+                              ? 'border-green-500/30 bg-green-500/10'
+                              : data?.status === '❌'
+                              ? 'border-red-500/30 bg-red-500/10'
+                              : 'border-white/10 bg-white/5'
                           }`}
                         >
-                          <div className="text-2xl mb-1">{data.status}</div>
-                          <div className="font-bold text-ns-text text-sm">{platform}</div>
-                          {data.url && (
-                            <a 
-                              href={data.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs text-ns-accent hover:underline mt-1 inline-block hover:text-ns-accent2 transition-colors"
-                            >
-                              View Profile
-                            </a>
-                          )}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-bold text-ns-text text-sm">{platform}</div>
+                            <div className="text-xl">
+                              {data?.status === '✅' ? '✅' : data?.status === '❌' ? '❌' : '❓'}
+                            </div>
+                          </div>
+                          <div className="text-xs text-ns-mute mb-2">
+                            {data?.status === '✅' ? 'Available' : 
+                             data?.status === '❌' ? 'Taken' : 
+                             'Unable to verify'}
+                          </div>
+                          {data && ('url' in data || 'urls' in data) ? (
+                            'urls' in data && data.urls ? (
+                              <div className="space-y-1">
+                                {data.urls.map((url: string, i: number) => (
+                                  <a 
+                                    key={i}
+                                    href={url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="block text-xs text-ns-accent hover:underline hover:text-ns-accent2 transition-colors"
+                                  >
+                                    Verify {i === 0 ? 'Profile' : 'Blog'} →
+                                  </a>
+                                ))}
+                              </div>
+                            ) : 'url' in data && data.url ? (
+                              <a 
+                                href={data.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-ns-accent/20 text-ns-accent rounded-pill text-xs font-medium hover:bg-ns-accent hover:text-ns-surface2 transition"
+                              >
+                                Verify →
+                              </a>
+                            ) : null
+                          ) : null}
                         </div>
                       ))}
                     </>

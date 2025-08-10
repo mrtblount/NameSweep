@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Sparkles, Loader2, ToggleLeft, ToggleRight, Download, GitCompare, RefreshCw } from "lucide-react";
+import { Send, Sparkles, Loader2, ToggleLeft, ToggleRight, Download, GitCompare, RefreshCw, ChevronDown, ChevronUp, ExternalLink, Star, Shield, TrendingUp } from "lucide-react";
 
 interface GeneratedCandidate {
   name: string;
@@ -21,6 +21,20 @@ interface GeneratedCandidate {
   };
 }
 
+interface ExpandedCheckResult {
+  domains: Record<string, string>;
+  socials: {
+    x: { status: string; url?: string; checkRequired?: boolean };
+    instagram: { status: string; url?: string; checkRequired?: boolean };
+    youtube: { status: string; url?: string; checkRequired?: boolean };
+    tiktok?: { status: string; url?: string; checkRequired?: boolean };
+    substack?: { status: string; urls?: string[]; checkRequired?: boolean };
+  };
+  tm: { status: string; serial: string | null };
+  seo: Array<{ title: string; root: string; da: string }>;
+  premium: boolean;
+}
+
 const PROMPT_SUGGESTIONS = [
   "Tech startup for AI-powered project management",
   "Sustainable fashion brand for young professionals",
@@ -36,6 +50,9 @@ export default function ChatMode() {
   const [extendedTlds, setExtendedTlds] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
+  const [expandedNames, setExpandedNames] = useState<Set<string>>(new Set());
+  const [checkingNames, setCheckingNames] = useState<Set<string>>(new Set());
+  const [realCheckResults, setRealCheckResults] = useState<Record<string, ExpandedCheckResult>>({});
 
   const handleGenerate = async () => {
     if (!description.trim() || description.length < 10) {
@@ -46,9 +63,11 @@ export default function ChatMode() {
     setError("");
     setLoading(true);
     setResults([]);
+    setExpandedNames(new Set());
+    setRealCheckResults({});
 
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/generate-simple", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -57,17 +76,69 @@ export default function ChatMode() {
         })
       });
 
+      // Check if response is JSON before parsing
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server error: Invalid response format. Please try again.");
+      }
+      
       const data = await res.json();
       
       if (!res.ok) {
+        // Handle specific error cases
+        if (data.debug?.apiKeyExists === false) {
+          throw new Error("OpenAI API key not configured. Please contact the site administrator.");
+        }
         throw new Error(data.error || "Failed to generate names");
       }
 
       setResults(data.candidates || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      console.error('Generation error:', err);
+      if (err instanceof SyntaxError) {
+        setError("Server error: Invalid response. Please refresh and try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleExpand = async (name: string, slug: string) => {
+    const newExpanded = new Set(expandedNames);
+    
+    if (newExpanded.has(name)) {
+      newExpanded.delete(name);
+      setExpandedNames(newExpanded);
+    } else {
+      newExpanded.add(name);
+      setExpandedNames(newExpanded);
+      
+      // If we haven't checked this name yet, run the real check
+      if (!realCheckResults[name] && !checkingNames.has(name)) {
+        const newChecking = new Set(checkingNames);
+        newChecking.add(name);
+        setCheckingNames(newChecking);
+        
+        try {
+          const res = await fetch(`/api/check?name=${encodeURIComponent(slug)}`);
+          const data = await res.json();
+          
+          if (res.ok) {
+            setRealCheckResults(prev => ({
+              ...prev,
+              [name]: data
+            }));
+          }
+        } catch (error) {
+          console.error('Check failed:', error);
+        } finally {
+          const newChecking = new Set(checkingNames);
+          newChecking.delete(name);
+          setCheckingNames(newChecking);
+        }
+      }
     }
   };
 
@@ -230,111 +301,224 @@ export default function ChatMode() {
 
           {/* Name Cards */}
           <div className="grid gap-4">
-            {results.map((candidate, index) => (
-              <div
-                key={candidate.name}
-                className={`card p-6 ${selectedForCompare.has(candidate.name) ? 'ring-2 ring-ns-accent' : ''}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h4 className="text-2xl font-bold text-ns-text">
-                        {index + 1}. {candidate.name}
-                      </h4>
-                      <span className="px-3 py-1 rounded-pill bg-ns-accent/20 text-ns-accent text-xs font-medium">
-                        {candidate.style}
-                      </span>
-                    </div>
-                    <p className="text-sm text-ns-mute mt-2">
-                      {candidate.checkResults.rationale}
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-ns-accent">
-                        {candidate.checkResults.score.total}
-                      </div>
-                      <div className="text-xs text-ns-mute">Score</div>
-                    </div>
-                    <button
-                      onClick={() => toggleCompare(candidate.name)}
-                      className={`p-2 rounded-lg transition ${
-                        selectedForCompare.has(candidate.name)
-                          ? 'bg-ns-accent text-ns-surface2'
-                          : 'bg-white/5 text-ns-mute hover:bg-white/10'
-                      }`}
-                    >
-                      <GitCompare className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {/* Domains */}
-                  <div className="p-3 rounded-lg bg-white/5">
-                    <div className="text-xs text-ns-mute mb-1">Domains</div>
-                    <div className="flex gap-1">
-                      {Object.entries(candidate.checkResults.domains).slice(0, 4).map(([tld, result]) => (
-                        <span key={tld} className="text-sm">
-                          {result.status}
+            {results.map((candidate, index) => {
+              const isExpanded = expandedNames.has(candidate.name);
+              const isChecking = checkingNames.has(candidate.name);
+              const realData = realCheckResults[candidate.name];
+              
+              return (
+                <div
+                  key={candidate.name}
+                  className={`card p-6 ${selectedForCompare.has(candidate.name) ? 'ring-2 ring-ns-accent' : ''}`}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <h4 className="text-2xl font-bold text-ns-text">
+                          {index + 1}. {candidate.name}
+                        </h4>
+                        <span className="px-3 py-1 rounded-pill bg-ns-accent/20 text-ns-accent text-xs font-medium">
+                          {candidate.style}
                         </span>
-                      ))}
+                      </div>
+                      <p className="text-sm text-ns-mute mt-2">
+                        {candidate.checkResults.rationale}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-ns-accent">
+                          {candidate.checkResults.score.total}
+                        </div>
+                        <div className="text-xs text-ns-mute">Score</div>
+                      </div>
+                      <button
+                        onClick={() => toggleCompare(candidate.name)}
+                        className={`p-2 rounded-lg transition ${
+                          selectedForCompare.has(candidate.name)
+                            ? 'bg-ns-accent text-ns-surface2'
+                            : 'bg-white/5 text-ns-mute hover:bg-white/10'
+                        }`}
+                      >
+                        <GitCompare className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => toggleExpand(candidate.name, candidate.slug)}
+                        className="p-2 rounded-lg bg-white/5 text-ns-text hover:bg-white/10 transition"
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Socials */}
-                  <div className="p-3 rounded-lg bg-white/5">
-                    <div className="text-xs text-ns-mute mb-1">Socials</div>
-                    <div className="text-sm text-ns-text">
-                      {candidate.checkResults.socials.x?.checkRequired ? (
-                        <a href={candidate.checkResults.socials.x.url} target="_blank" rel="noopener" className="text-ns-accent hover:underline">
-                          Check Required
-                        </a>
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="space-y-4 mt-6 pt-6 border-t border-white/10">
+                      {isChecking ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-ns-accent mr-2" />
+                          <span className="text-ns-mute">Running full availability check...</span>
+                        </div>
+                      ) : realData ? (
+                        <>
+                          {/* Domains */}
+                          <div>
+                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
+                              <Star className="w-4 h-4 text-ns-accent" />
+                              Domain Availability
+                            </h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              {Object.entries(realData.domains).map(([tld, status]) => (
+                                <div
+                                  key={tld}
+                                  className={`p-3 rounded-lg border transition ${
+                                    status === "✅" 
+                                      ? "bg-green-500/10 border-green-500/30" 
+                                      : status === "⚠️"
+                                      ? "bg-yellow-500/10 border-yellow-500/30"
+                                      : "bg-red-500/10 border-red-500/30"
+                                  }`}
+                                >
+                                  <div className="text-xl mb-1">{status}</div>
+                                  <div className="font-bold text-ns-text text-sm">{candidate.slug}{tld}</div>
+                                  {status === "⚠️" && (
+                                    <div className="text-xs text-yellow-500 mt-1">Premium</div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Social Media */}
+                          <div>
+                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-ns-accent" />
+                              Social Media Handles
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                              {Object.entries({
+                                'X': realData.socials.x,
+                                'Instagram': realData.socials.instagram,
+                                'YouTube': realData.socials.youtube,
+                                'TikTok': realData.socials.tiktok,
+                                'Substack': realData.socials.substack
+                              }).map(([platform, data]) => (
+                                <div
+                                  key={platform}
+                                  className="p-3 rounded-lg border border-white/10 bg-white/5"
+                                >
+                                  <div className="font-bold text-ns-text text-sm mb-2">{platform}</div>
+                                  {data && ('url' in data || 'urls' in data) ? (
+                                    'urls' in data && data.urls ? (
+                                      <div className="space-y-1">
+                                        {data.urls.map((url: string, i: number) => (
+                                          <a 
+                                            key={i}
+                                            href={url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs text-ns-accent hover:underline"
+                                          >
+                                            Check {i === 0 ? 'Profile' : 'Blog'}
+                                            <ExternalLink className="w-3 h-3" />
+                                          </a>
+                                        ))}
+                                      </div>
+                                    ) : 'url' in data && data.url ? (
+                                      <a 
+                                        href={data.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-2 py-1 bg-ns-accent/20 text-ns-accent rounded-pill text-xs font-medium hover:bg-ns-accent hover:text-ns-surface2 transition"
+                                      >
+                                        Check
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    ) : null
+                                  ) : (
+                                    <span className="text-xs text-ns-mute">Not checked</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Trademark */}
+                          <div>
+                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
+                              <Shield className="w-4 h-4 text-ns-accent" />
+                              USPTO Trademark Status
+                            </h4>
+                            <div className={`p-4 rounded-lg border ${
+                              realData.tm.status === "none" 
+                                ? "bg-green-500/10 border-green-500/30" 
+                                : realData.tm.status === "dead"
+                                ? "bg-yellow-500/10 border-yellow-500/30"
+                                : "bg-red-500/10 border-red-500/30"
+                            }`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="font-bold text-ns-text">Status: </span>
+                                  <span className={`capitalize font-medium ${
+                                    realData.tm.status === "live" ? "text-red-500" :
+                                    realData.tm.status === "dead" ? "text-yellow-500" :
+                                    "text-ns-accent"
+                                  }`}>
+                                    {realData.tm.status === "none" ? "No trademark found ✅" : realData.tm.status}
+                                  </span>
+                                </div>
+                                {realData.tm.serial && (
+                                  <div className="text-sm text-ns-mute">
+                                    Serial: {realData.tm.serial}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* SEO Competition */}
+                          <div>
+                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
+                              <TrendingUp className="w-4 h-4 text-ns-accent" />
+                              SEO Competition
+                            </h4>
+                            <div className="space-y-2">
+                              {realData.seo.map((item, i) => (
+                                <div key={i} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-sm text-ns-text truncate">{item.title}</div>
+                                      <div className="text-xs text-ns-mute">{item.root}</div>
+                                    </div>
+                                    <div className={`px-2 py-1 rounded-pill text-xs font-bold ${
+                                      item.da === "high" ? "bg-red-500/20 text-red-400" :
+                                      item.da === "med" ? "bg-yellow-500/20 text-yellow-400" :
+                                      "bg-ns-accent/20 text-ns-accent"
+                                    }`}>
+                                      DA: {item.da.toUpperCase()}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
                       ) : (
-                        'Pending'
+                        <div className="text-center py-8 text-ns-mute">
+                          Click to run full availability check
+                        </div>
                       )}
                     </div>
-                  </div>
-
-                  {/* USPTO */}
-                  <div className="p-3 rounded-lg bg-white/5">
-                    <div className="text-xs text-ns-mute mb-1">USPTO</div>
-                    <div className={`text-sm font-medium ${
-                      candidate.checkResults.tm.status === 'none' ? 'text-ns-accent' :
-                      candidate.checkResults.tm.status === 'dead' ? 'text-yellow-500' :
-                      'text-red-500'
-                    }`}>
-                      {candidate.checkResults.tm.status === 'none' ? 'Clear' : candidate.checkResults.tm.status}
-                    </div>
-                  </div>
-
-                  {/* SEO */}
-                  <div className="p-3 rounded-lg bg-white/5">
-                    <div className="text-xs text-ns-mute mb-1">SEO Competition</div>
-                    <div className="text-sm text-ns-text">
-                      {candidate.checkResults.seo.length} results
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                {/* Score Breakdown */}
-                <details className="mt-3">
-                  <summary className="text-xs text-ns-mute cursor-pointer hover:text-ns-text">
-                    View score breakdown
-                  </summary>
-                  <div className="mt-2 grid grid-cols-5 gap-2 text-xs">
-                    {Object.entries(candidate.checkResults.score.subscores).map(([key, value]) => (
-                      <div key={key} className="text-center">
-                        <div className="text-ns-mute capitalize">{key}</div>
-                        <div className="text-ns-text font-bold">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

@@ -13,7 +13,7 @@ interface PorkbunResponse {
   message?: string;
 }
 
-const PORKBUN_API_BASE = 'https://porkbun.com/api/json/v3';
+const PORKBUN_API_BASE = 'https://api.porkbun.com/api/json/v3';
 
 export interface DomainCheckResult {
   available: boolean;
