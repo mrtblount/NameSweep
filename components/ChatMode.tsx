@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Sparkles, Loader2, ToggleLeft, ToggleRight, Download, GitCompare, RefreshCw, ChevronDown, ChevronUp, ExternalLink, Star, Shield, TrendingUp } from "lucide-react";
+import { Send, Sparkles, Loader2, ToggleLeft, ToggleRight, Download, GitCompare, RefreshCw, ChevronDown, ChevronUp, ExternalLink, Star, Shield, TrendingUp, AlertCircle, MessageSquare, Users } from "lucide-react";
 
 interface GeneratedCandidate {
   name: string;
@@ -36,9 +36,9 @@ interface ExpandedCheckResult {
 }
 
 const PROMPT_SUGGESTIONS = [
-  "Tech startup for AI-powered project management",
-  "Sustainable fashion brand for young professionals",
-  "Local coffee shop with coworking space",
+  "AI-powered project management for remote teams",
+  "Sustainable fashion marketplace",
+  "Modern coffee shop with coworking",
   "Online fitness coaching platform",
   "Pet care services marketplace"
 ];
@@ -200,70 +200,76 @@ export default function ChatMode() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Chat Input */}
-      <div className="card p-6">
-        <h3 className="text-xl font-bold text-ns-text mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-ns-accent" />
-          Describe Your Business
-        </h3>
-        
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Tell us about your business idea, target audience, and brand personality..."
-          className="w-full min-h-[120px] px-4 py-3 bg-white/[0.06] rounded-xl text-ns-text placeholder-white/40 border border-white/10 focus:border-ns-accent/50 focus:ring-2 focus:ring-ns-accent/50 focus:outline-none resize-none"
-        />
+      <div className="card p-8">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <MessageSquare className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold text-lg">Describe Your Business</h3>
+          </div>
+          
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Tell us about your business idea, target audience, and brand personality..."
+            className="w-full min-h-[120px] px-4 py-3 rounded-lg border border-neutral-300 bg-white text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none transition-all duration-200"
+          />
 
-        {/* Prompt Suggestions */}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="text-xs text-ns-mute">Try:</span>
-          {PROMPT_SUGGESTIONS.map((prompt, i) => (
+          {/* Prompt Suggestions */}
+          <div className="flex flex-wrap gap-2">
+            <span className="text-sm text-neutral-600">Try:</span>
+            {PROMPT_SUGGESTIONS.map((prompt, i) => (
+              <button
+                key={i}
+                onClick={() => setDescription(prompt)}
+                className="text-sm px-3 py-1 rounded-full bg-neutral-100 text-neutral-600 hover:bg-primary/10 hover:text-primary transition-all duration-200"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center justify-between pt-2">
             <button
-              key={i}
-              onClick={() => setDescription(prompt)}
-              className="text-xs px-3 py-1 rounded-pill bg-white/5 text-ns-mute hover:bg-white/10 hover:text-ns-text transition"
+              onClick={() => setExtendedTlds(!extendedTlds)}
+              className="flex items-center gap-2 text-sm font-medium"
             >
-              {prompt}
+              {extendedTlds ? (
+                <ToggleRight className="w-5 h-5 text-primary" />
+              ) : (
+                <ToggleLeft className="w-5 h-5 text-neutral-400" />
+              )}
+              <span className="text-neutral-700">Extended TLD Check</span>
             </button>
-          ))}
+
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !description.trim()}
+              className="btn-primary"
+            >
+              {loading ? (
+                <>
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Names
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Controls */}
-        <div className="mt-4 flex items-center justify-between">
-          <button
-            onClick={() => setExtendedTlds(!extendedTlds)}
-            className="flex items-center gap-2 text-sm text-ns-text"
-          >
-            {extendedTlds ? (
-              <ToggleRight className="w-5 h-5 text-ns-accent" />
-            ) : (
-              <ToggleLeft className="w-5 h-5 text-ns-mute" />
-            )}
-            Extended TLD Check
-          </button>
-
-          <button
-            onClick={handleGenerate}
-            disabled={loading || !description.trim()}
-            className="btn-accent min-w-[140px]"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" />
-                Generate Names
-              </>
-            )}
-          </button>
         </div>
 
         {error && (
-          <p className="text-red-500 text-sm mt-3">{error}</p>
+          <div className="mt-4 p-3 bg-error/10 border border-error/20 rounded-lg text-error text-sm flex items-center">
+            <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+            {error}
+          </div>
         )}
       </div>
 
@@ -271,29 +277,29 @@ export default function ChatMode() {
       {results.length > 0 && (
         <>
           {/* Export Controls */}
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-ns-text">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg">
               Generated Names ({results.length})
             </h3>
             <div className="flex gap-2">
               {selectedForCompare.size > 0 && (
-                <button className="btn-ghost text-sm">
-                  <GitCompare className="mr-2 h-4 w-4" />
+                <button className="btn-secondary text-sm">
+                  <GitCompare className="mr-2 h-3 w-3" />
                   Compare ({selectedForCompare.size})
                 </button>
               )}
               <button 
                 onClick={() => exportResults('csv')}
-                className="btn-ghost text-sm"
+                className="btn-secondary text-sm"
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-2 h-3 w-3" />
                 CSV
               </button>
               <button 
                 onClick={() => exportResults('markdown')}
-                className="btn-ghost text-sm"
+                className="btn-secondary text-sm"
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="mr-2 h-3 w-3" />
                 Markdown
               </button>
             </div>
@@ -309,44 +315,46 @@ export default function ChatMode() {
               return (
                 <div
                   key={candidate.name}
-                  className={`card p-6 ${selectedForCompare.has(candidate.name) ? 'ring-2 ring-ns-accent' : ''}`}
+                  className={`card p-6 ${selectedForCompare.has(candidate.name) ? 'ring-2 ring-primary border-primary' : ''}`}
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <h4 className="text-2xl font-bold text-ns-text">
-                          {index + 1}. {candidate.name}
+                        <h4 className="text-xl font-bold">
+                          {candidate.name}
                         </h4>
-                        <span className="px-3 py-1 rounded-pill bg-ns-accent/20 text-ns-accent text-xs font-medium">
+                        <span className="badge">
                           {candidate.style}
                         </span>
                       </div>
-                      <p className="text-sm text-ns-mute mt-2">
+                      <p className="text-sm text-neutral-600 mt-2">
                         {candidate.checkResults.rationale}
                       </p>
                     </div>
                     
                     <div className="flex items-center gap-3">
                       <div className="text-center">
-                        <div className="text-3xl font-bold text-ns-accent">
+                        <div className="text-2xl font-bold gradient-text">
                           {candidate.checkResults.score.total}
                         </div>
-                        <div className="text-xs text-ns-mute">Score</div>
+                        <div className="text-xs text-neutral-600">Score</div>
                       </div>
                       <button
                         onClick={() => toggleCompare(candidate.name)}
                         className={`p-2 rounded-lg transition ${
                           selectedForCompare.has(candidate.name)
-                            ? 'bg-ns-accent text-ns-surface2'
-                            : 'bg-white/5 text-ns-mute hover:bg-white/10'
+                            ? 'bg-primary text-white'
+                            : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                         }`}
+                        title="Compare"
                       >
                         <GitCompare className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => toggleExpand(candidate.name, candidate.slug)}
-                        className="p-2 rounded-lg bg-white/5 text-ns-text hover:bg-white/10 transition"
+                        className="p-2 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition"
+                        title={isExpanded ? "Collapse" : "Expand details"}
                       >
                         {isExpanded ? (
                           <ChevronUp className="w-4 h-4" />
@@ -359,36 +367,36 @@ export default function ChatMode() {
 
                   {/* Expanded Content */}
                   {isExpanded && (
-                    <div className="space-y-4 mt-6 pt-6 border-t border-white/10">
+                    <div className="space-y-4 mt-6 pt-6 border-t border-neutral-200">
                       {isChecking ? (
                         <div className="flex items-center justify-center py-8">
-                          <Loader2 className="w-6 h-6 animate-spin text-ns-accent mr-2" />
-                          <span className="text-ns-mute">Running full availability check...</span>
+                          <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary mr-3"></span>
+                          <span className="text-neutral-600">Running full availability check...</span>
                         </div>
                       ) : realData ? (
                         <>
                           {/* Domains */}
                           <div>
-                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
-                              <Star className="w-4 h-4 text-ns-accent" />
+                            <h5 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <Star className="w-4 h-4 text-primary" />
                               Domain Availability
-                            </h4>
+                            </h5>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                               {Object.entries(realData.domains).map(([tld, status]) => (
                                 <div
                                   key={tld}
-                                  className={`p-3 rounded-lg border transition ${
+                                  className={`p-3 rounded-lg border-2 transition ${
                                     status === "✅" 
-                                      ? "bg-green-500/10 border-green-500/30" 
+                                      ? "status-available" 
                                       : status === "⚠️"
-                                      ? "bg-yellow-500/10 border-yellow-500/30"
-                                      : "bg-red-500/10 border-red-500/30"
+                                      ? "status-premium"
+                                      : "status-taken"
                                   }`}
                                 >
-                                  <div className="text-xl mb-1">{status}</div>
-                                  <div className="font-bold text-ns-text text-sm">{candidate.slug}{tld}</div>
+                                  <div className="text-lg mb-1">{status}</div>
+                                  <div className="font-semibold text-sm">{candidate.slug}{tld}</div>
                                   {status === "⚠️" && (
-                                    <div className="text-xs text-yellow-500 mt-1">Premium</div>
+                                    <div className="text-xs mt-1">Premium</div>
                                   )}
                                 </div>
                               ))}
@@ -397,10 +405,10 @@ export default function ChatMode() {
 
                           {/* Social Media */}
                           <div>
-                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
-                              <Sparkles className="w-4 h-4 text-ns-accent" />
+                            <h5 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <Users className="w-4 h-4 text-primary" />
                               Social Media Handles
-                            </h4>
+                            </h5>
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                               {Object.entries({
                                 'X': realData.socials.x,
@@ -411,9 +419,9 @@ export default function ChatMode() {
                               }).map(([platform, data]) => (
                                 <div
                                   key={platform}
-                                  className="p-3 rounded-lg border border-white/10 bg-white/5"
+                                  className="p-3 rounded-lg border border-neutral-200 bg-neutral-50"
                                 >
-                                  <div className="font-bold text-ns-text text-sm mb-2">{platform}</div>
+                                  <div className="font-semibold text-sm mb-2">{platform}</div>
                                   {data && ('url' in data || 'urls' in data) ? (
                                     'urls' in data && data.urls ? (
                                       <div className="space-y-1">
@@ -423,7 +431,7 @@ export default function ChatMode() {
                                             href={url} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-xs text-ns-accent hover:underline"
+                                            className="flex items-center gap-1 text-xs text-primary hover:underline"
                                           >
                                             Check {i === 0 ? 'Profile' : 'Blog'}
                                             <ExternalLink className="w-3 h-3" />
@@ -435,14 +443,14 @@ export default function ChatMode() {
                                         href={data.url} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 px-2 py-1 bg-ns-accent/20 text-ns-accent rounded-pill text-xs font-medium hover:bg-ns-accent hover:text-ns-surface2 transition"
+                                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium hover:bg-primary hover:text-white transition"
                                       >
                                         Check
                                         <ExternalLink className="w-3 h-3" />
                                       </a>
                                     ) : null
                                   ) : (
-                                    <span className="text-xs text-ns-mute">Not checked</span>
+                                    <span className="text-xs text-neutral-500">Not checked</span>
                                   )}
                                 </div>
                               ))}
@@ -451,30 +459,30 @@ export default function ChatMode() {
 
                           {/* Trademark */}
                           <div>
-                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
-                              <Shield className="w-4 h-4 text-ns-accent" />
+                            <h5 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <Shield className="w-4 h-4 text-primary" />
                               USPTO Trademark Status
-                            </h4>
-                            <div className={`p-4 rounded-lg border ${
+                            </h5>
+                            <div className={`p-4 rounded-lg border-2 ${
                               realData.tm.status === "none" 
-                                ? "bg-green-500/10 border-green-500/30" 
+                                ? "status-available" 
                                 : realData.tm.status === "dead"
-                                ? "bg-yellow-500/10 border-yellow-500/30"
-                                : "bg-red-500/10 border-red-500/30"
+                                ? "status-premium"
+                                : "status-taken"
                             }`}>
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <span className="font-bold text-ns-text">Status: </span>
-                                  <span className={`capitalize font-medium ${
-                                    realData.tm.status === "live" ? "text-red-500" :
-                                    realData.tm.status === "dead" ? "text-yellow-500" :
-                                    "text-ns-accent"
+                                  <span className="font-semibold">Status: </span>
+                                  <span className={`font-medium ${
+                                    realData.tm.status === "live" ? "text-error" :
+                                    realData.tm.status === "dead" ? "text-warning" :
+                                    "text-success"
                                   }`}>
-                                    {realData.tm.status === "none" ? "No trademark found ✅" : realData.tm.status}
+                                    {realData.tm.status === "none" ? "No trademark found ✅" : realData.tm.status.toUpperCase()}
                                   </span>
                                 </div>
                                 {realData.tm.serial && (
-                                  <div className="text-sm text-ns-mute">
+                                  <div className="text-sm text-neutral-600">
                                     Serial: {realData.tm.serial}
                                   </div>
                                 )}
@@ -484,22 +492,22 @@ export default function ChatMode() {
 
                           {/* SEO Competition */}
                           <div>
-                            <h4 className="text-sm font-bold text-ns-text mb-3 flex items-center gap-2">
-                              <TrendingUp className="w-4 h-4 text-ns-accent" />
+                            <h5 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                              <TrendingUp className="w-4 h-4 text-primary" />
                               SEO Competition
-                            </h4>
+                            </h5>
                             <div className="space-y-2">
                               {realData.seo.map((item, i) => (
-                                <div key={i} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                                <div key={i} className="p-3 rounded-lg bg-neutral-50 hover:bg-neutral-100 transition">
                                   <div className="flex items-center justify-between">
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-semibold text-sm text-ns-text truncate">{item.title}</div>
-                                      <div className="text-xs text-ns-mute">{item.root}</div>
+                                      <div className="font-medium text-sm truncate">{item.title}</div>
+                                      <div className="text-xs text-neutral-600">{item.root}</div>
                                     </div>
-                                    <div className={`px-2 py-1 rounded-pill text-xs font-bold ${
-                                      item.da === "high" ? "bg-red-500/20 text-red-400" :
-                                      item.da === "med" ? "bg-yellow-500/20 text-yellow-400" :
-                                      "bg-ns-accent/20 text-ns-accent"
+                                    <div className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                      item.da === "high" ? "badge-error" :
+                                      item.da === "med" ? "badge-warning" :
+                                      "badge-success"
                                     }`}>
                                       DA: {item.da.toUpperCase()}
                                     </div>
@@ -510,8 +518,8 @@ export default function ChatMode() {
                           </div>
                         </>
                       ) : (
-                        <div className="text-center py-8 text-ns-mute">
-                          Click to run full availability check
+                        <div className="text-center py-8 text-neutral-500">
+                          Click expand button to run full availability check
                         </div>
                       )}
                     </div>
