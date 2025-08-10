@@ -1,6 +1,19 @@
+import { searchUSPTO } from '@/lib/services/serpapi';
+
 export async function checkTrademark(name: string) {
   try {
-    const searchQuery = `site:uspto.gov "TSDR" "${name}"`;
+    // Use SerpAPI if available
+    if (process.env.SERPAPI_KEY) {
+      const result = await searchUSPTO(name);
+      return {
+        status: result.status,
+        serial: result.serial || null,
+        classes: result.classes
+      };
+    }
+    
+    // Fallback: basic Google search
+    const searchQuery = `site:tsdr.uspto.gov "${name}"`;
     const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
     
     const res = await fetch(searchUrl, {
