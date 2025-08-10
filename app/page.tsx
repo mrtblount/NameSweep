@@ -82,7 +82,6 @@ export default function Home() {
               </span>
             </div>
             <div className="hidden md:flex items-center gap-8">
-              <a href="#features" className="nav-link">Features</a>
               <a href="#search" className="nav-link">Search</a>
               <a href="#pricing" className="nav-link">Pricing</a>
               <a href="#about" className="nav-link">About</a>
@@ -117,92 +116,10 @@ export default function Home() {
               Powered by AI to help you make smart branding decisions.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <button 
-                onClick={() => document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })}
-                className="btn-primary"
-              >
-                <Search className="mr-2 h-4 w-4" />
-                Start Checking
-              </button>
-              <button className="btn-outline">
-                <MessageSquare className="mr-2 h-4 w-4" />
-                AI Generator
-              </button>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl mx-auto">
-              <div className="text-center">
-                <div className="text-3xl font-bold gradient-text">10M+</div>
-                <div className="text-sm text-neutral-600">Domains Checked</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold gradient-text">50K+</div>
-                <div className="text-sm text-neutral-600">Happy Users</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold gradient-text">0.3s</div>
-                <div className="text-sm text-neutral-600">Avg Response</div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="section bg-neutral-50" id="features">
-        <div className="container">
-          <div className="text-center mb-12">
-            <h2 className="heading-2 mb-4">Everything You Need to Secure Your Brand</h2>
-            <p className="text-body max-w-2xl mx-auto">
-              Comprehensive brand protection with real-time availability checking across all platforms
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="card p-6 hover-lift">
-              <div className="w-12 h-12 rounded-lg bg-gradient-primary flex items-center justify-center mb-4">
-                <Globe className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Domain Check</h3>
-              <p className="text-sm text-neutral-600">
-                Instant availability across all major TLDs with premium domain detection
-              </p>
-            </div>
-
-            <div className="card p-6 hover-lift">
-              <div className="w-12 h-12 rounded-lg bg-gradient-primary flex items-center justify-center mb-4">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Social Media</h3>
-              <p className="text-sm text-neutral-600">
-                Check username availability on X, Instagram, YouTube, TikTok, and more
-              </p>
-            </div>
-
-            <div className="card p-6 hover-lift">
-              <div className="w-12 h-12 rounded-lg bg-gradient-primary flex items-center justify-center mb-4">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">Trademark Search</h3>
-              <p className="text-sm text-neutral-600">
-                USPTO trademark database search to ensure legal protection
-              </p>
-            </div>
-
-            <div className="card p-6 hover-lift">
-              <div className="w-12 h-12 rounded-lg bg-gradient-primary flex items-center justify-center mb-4">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-lg mb-2">SEO Analysis</h3>
-              <p className="text-sm text-neutral-600">
-                Competition analysis with domain authority scoring
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Search Section */}
       <section className="section" id="search">
