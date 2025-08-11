@@ -67,7 +67,7 @@ export default function ChatMode() {
     setRealCheckResults({});
 
     try {
-      const res = await fetch("/api/generate-simple", {
+      const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -85,14 +85,28 @@ export default function ChatMode() {
       const data = await res.json();
       
       if (!res.ok) {
-        // Handle specific error cases
-        if (data.debug?.apiKeyExists === false) {
-          throw new Error("OpenAI API key not configured. Please contact the site administrator.");
+        // Handle specific error cases for real APIs
+        if (data.error?.includes("OpenAI")) {
+          throw new Error("AI service temporarily unavailable. Please try again in a moment.");
         }
-        throw new Error(data.error || "Failed to generate names");
+        if (data.error?.includes("Porkbun")) {
+          throw new Error("Domain checking service temporarily unavailable. Please try again.");
+        }
+        if (data.error?.includes("SerpAPI")) {
+          throw new Error("SEO analysis service temporarily unavailable. Please try again.");
+        }
+        throw new Error(data.error || "Failed to generate names. Please try again.");
       }
 
-      setResults(data.candidates || []);
+      // Handle the real API response structure
+      if (data.candidates && Array.isArray(data.candidates)) {
+        setResults(data.candidates);
+      } else if (data.error) {
+        throw new Error(data.error);
+      } else {
+        console.warn("Unexpected response structure:", data);
+        setResults([]);
+      }
     } catch (err) {
       console.error('Generation error:', err);
       if (err instanceof SyntaxError) {

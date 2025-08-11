@@ -53,8 +53,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Generation error:", error);
+    
+    // Provide more specific error messages
+    let errorMessage = "Failed to generate names";
+    
+    if (error instanceof Error) {
+      if (error.message.includes("OpenAI")) {
+        errorMessage = "OpenAI service error: Unable to generate names";
+      } else if (error.message.includes("Porkbun")) {
+        errorMessage = "Porkbun domain check failed. Using fallback data.";
+      } else if (error.message.includes("SerpAPI") || error.message.includes("SERP")) {
+        errorMessage = "SerpAPI search failed. SEO data unavailable.";
+      } else if (error.message.includes("API key")) {
+        errorMessage = "Configuration error: Missing API credentials";
+      } else {
+        errorMessage = error.message;
+      }
+    }
+    
     return NextResponse.json(
-      { error: "Failed to generate names" },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === "development" ? error instanceof Error ? error.message : "Unknown error" : undefined
+      },
       { status: 500 }
     );
   }

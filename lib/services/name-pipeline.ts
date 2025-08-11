@@ -112,17 +112,28 @@ export async function runNamePipeline(options: PipelineOptions) {
   
   for (const name of filteredNames.slice(0, 30)) {
     const slug = name.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const comCheck = await checkDomainAvailability(`${slug}.com`);
     
-    // Keep if .com is available OR we'll check alternates later
-    const passedStage1 = comCheck.available || 
-                        (comCheck.premium && comCheck.price !== undefined && comCheck.price < premiumThreshold);
-    
-    stage1Candidates.push({
-      ...name,
-      slug,
-      passedStage1: passedStage1 || false
-    });
+    try {
+      const comCheck = await checkDomainAvailability(`${slug}.com`);
+      
+      // Keep if .com is available OR we'll check alternates later
+      const passedStage1 = comCheck.available || 
+                          (comCheck.premium && comCheck.price !== undefined && comCheck.price < premiumThreshold);
+      
+      stage1Candidates.push({
+        ...name,
+        slug,
+        passedStage1: passedStage1 || false
+      });
+    } catch (error) {
+      console.warn(`Domain check failed for ${slug}, including anyway:`, error);
+      // If domain check fails, include the candidate anyway
+      stage1Candidates.push({
+        ...name,
+        slug,
+        passedStage1: true // Pass it through to stage 2
+      });
+    }
   }
 
   // Keep top 15 candidates that passed stage 1
@@ -142,11 +153,24 @@ export async function runNamePipeline(options: PipelineOptions) {
   const deepCheckedCandidates = await Promise.all(
     stage2Candidates.map(async (candidate) => {
       try {
-        // Parallel checks
+        // Parallel checks with individual error handling
         const [domains, tm, seo, socials] = await Promise.all([
-          checkMultipleDomains(candidate.slug, tlds),
-          searchUSPTO(candidate.name),
-          searchSERP(candidate.name),
+          checkMultipleDomains(candidate.slug, tlds).catch(err => {
+            console.warn(`Domain check failed for ${candidate.slug}:`, err);
+            // Return mock data if real check fails
+            return tlds.reduce((acc, tld) => {
+              acc[tld] = { status: '❓', available: false, error: 'Check failed' };
+              return acc;
+            }, {} as Record<string, any>);
+          }),
+          searchUSPTO(candidate.name).catch(err => {
+            console.warn(`USPTO check failed for ${candidate.name}:`, err);
+            return { status: 'none' };
+          }),
+          searchSERP(candidate.name).catch(err => {
+            console.warn(`SEO check failed for ${candidate.name}:`, err);
+            return [];
+          }),
           checkSocialsUserInitiated(candidate.slug)
         ]);
 
