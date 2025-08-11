@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkMultipleDomainsViaDNS } from "@/lib/helpers/domains-dns-check";
+import { checkMultipleDomains } from "@/lib/services/porkbun";
 import { checkSocialsBalanced } from "@/lib/helpers/socials-balanced";
 import { checkTrademark } from "@/lib/helpers/trademark";
 import { seoSummary } from "@/lib/helpers/seo";
@@ -44,18 +44,17 @@ export async function GET(request: NextRequest) {
         
         // Check domains and social media in parallel
         const [domainResults, socials, tm, seo] = await Promise.all([
-          checkMultipleDomainsViaDNS(slug, tlds),
+          checkMultipleDomains(slug, tlds), // Now uses GoDaddy/Porkbun APIs
           checkSocialsBalanced(slug),
           checkTrademark(slug),
           seoSummary(slug)
         ]);
         
-        // Format domains for response
-        const domains: Record<string, string> = {};
+        // Format domains for response (keep full result objects)
+        const domains = domainResults;
         let hasPremium = false;
         
-        Object.entries(domainResults).forEach(([tld, result]) => {
-          domains[tld] = result.status;
+        Object.values(domainResults).forEach((result) => {
           if (result.premium) hasPremium = true;
         });
         

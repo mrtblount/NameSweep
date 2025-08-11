@@ -1,4 +1,5 @@
 import { checkDNSResolution } from './dns-check';
+import { checkGoDaddyAvailability } from './godaddy';
 
 interface PorkbunPricing {
   registration?: string;
@@ -170,63 +171,76 @@ async function porkbunRequest(endpoint: string, data: any): Promise<any> {
   }
 }
 
+async function checkPorkbunAvailability(
+  domain: string
+): Promise<DomainCheckResult> {
+  console.log(`Checking Porkbun availability for: ${domain}`);
+  
+  const result: PorkbunResponse = await porkbunRequest('/domain/check', {
+    domain
+  });
+
+  console.log(`Porkbun response for ${domain}:`, result);
+
+  // PRIMARY CHECK: Is the domain available for registration?
+  const available = result.available === 'available' || result.available === 'yes';
+  const pricing = result.pricing;
+  const isPremium = pricing?.premium || false;
+  const price = pricing?.registration ? parseFloat(pricing.registration) : undefined;
+
+  // If domain is AVAILABLE
+  if (available) {
+    // Check if it's premium pricing (>= $249)
+    if (isPremium || (price && price >= 249)) {
+      return {
+        available: true,
+        premium: true,
+        price,
+        status: '⚠️',
+        displayText: `premium $${price}`,
+        mock: false
+      };
+    } else {
+      return {
+        available: true,
+        premium: false,
+        price,
+        status: '✅',
+        displayText: 'available',
+        mock: false
+      };
+    }
+  }
+  
+  // If domain is TAKEN - check if there's a live site
+  const hasLiveSite = await checkDNSResolution(domain);
+  
+  return {
+    available: false,
+    premium: false,
+    status: '❌',
+    liveSite: hasLiveSite,
+    displayText: hasLiveSite ? 'live site' : 'parked',
+    mock: false
+  };
+}
+
 export async function checkDomainAvailability(
   domain: string
 ): Promise<DomainCheckResult> {
+  // Try GoDaddy first (more reliable)
   try {
-    console.log(`Checking domain availability for: ${domain}`);
+    return await checkGoDaddyAvailability(domain);
+  } catch (godaddyError) {
+    console.warn('GoDaddy failed, trying Porkbun:', godaddyError);
     
-    const result: PorkbunResponse = await porkbunRequest('/domain/check', {
-      domain
-    });
-
-    console.log(`Porkbun response for ${domain}:`, result);
-
-    // PRIMARY CHECK: Is the domain available for registration?
-    const available = result.available === 'available' || result.available === 'yes';
-    const pricing = result.pricing;
-    const isPremium = pricing?.premium || false;
-    const price = pricing?.registration ? parseFloat(pricing.registration) : undefined;
-
-    // If domain is AVAILABLE
-    if (available) {
-      // Check if it's premium pricing (>= $249)
-      if (isPremium || (price && price >= 249)) {
-        return {
-          available: true,
-          premium: true,
-          price,
-          status: '⚠️',
-          displayText: `premium $${price}`,
-          mock: false
-        };
-      } else {
-        return {
-          available: true,
-          premium: false,
-          price,
-          status: '✅',
-          displayText: 'available',
-          mock: false
-        };
-      }
+    // Try Porkbun as backup
+    try {
+      return await checkPorkbunAvailability(domain);
+    } catch (porkbunError) {
+      console.warn('Both APIs failed, using mock data:', porkbunError);
+      return getMockDomainResult(domain);
     }
-    
-    // If domain is TAKEN - check if there's a live site
-    const hasLiveSite = await checkDNSResolution(domain);
-    
-    return {
-      available: false,
-      premium: false,
-      status: '❌',
-      liveSite: hasLiveSite,
-      displayText: hasLiveSite ? 'live site' : 'parked',
-      mock: false
-    };
-  } catch (error) {
-    console.warn(`Domain check failed for ${domain}, using mock data:`, error);
-    // Return mock data when API fails
-    return getMockDomainResult(domain);
   }
 }
 

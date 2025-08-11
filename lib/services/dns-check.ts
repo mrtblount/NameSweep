@@ -3,10 +3,16 @@ export async function checkDNSResolution(domain: string): Promise<boolean> {
     // Remove any protocol if present
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '');
     
-    // Try to resolve DNS using a public DNS API
-    const response = await fetch(`https://dns.google/resolve?name=${cleanDomain}&type=A`, {
-      signal: AbortSignal.timeout(3000) // 3 second timeout
-    });
+    // Try to resolve DNS using Cloudflare's DNS over HTTPS
+    const response = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${cleanDomain}&type=A`,
+      {
+        headers: { 
+          'Accept': 'application/dns-json'
+        },
+        signal: AbortSignal.timeout(3000) // 3 second timeout
+      }
+    );
     
     if (!response.ok) {
       return false;
@@ -15,6 +21,7 @@ export async function checkDNSResolution(domain: string): Promise<boolean> {
     const data = await response.json();
     
     // Check if there are any A records (IP addresses)
+    // Status 0 = NOERROR (found), Status 3 = NXDOMAIN (not found)
     return data.Status === 0 && data.Answer && data.Answer.length > 0;
   } catch (error) {
     console.warn(`DNS resolution check failed for ${domain}:`, error);
