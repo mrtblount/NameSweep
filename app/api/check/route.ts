@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkMultipleDomains } from "@/lib/services/porkbun";
+import { checkMultipleDomains } from "@/lib/services/domain-checker";
 import { checkSocialsBalanced } from "@/lib/helpers/socials-balanced";
 import { checkTrademark } from "@/lib/helpers/trademark";
 import { seoSummary } from "@/lib/helpers/seo";
@@ -33,66 +33,7 @@ export async function GET(request: NextRequest) {
     }
     
     const slug = parsedInput.name;
-    
-    // FORCE ACCURATE RESULTS FOR KNOWN DOMAINS
-    if (slug.toLowerCase() === 'workbrew') {
-      return NextResponse.json({
-        domains: {
-          '.com': '❌ live',    // Only .com has live site
-          '.co': '❌ parked',   // Taken but no site
-          '.io': '❌ parked',   // Taken but no site  
-          '.net': '❌ parked'   // Taken but no site
-        },
-        socials: {
-          x: { status: '❌', url: 'https://x.com/workbrew', available: false },
-          instagram: { status: '❌', url: 'https://instagram.com/workbrew', available: false },
-          youtube: { status: '❌', url: 'https://youtube.com/@workbrew', available: false },
-          tiktok: { status: '❌', url: 'https://tiktok.com/@workbrew', available: false },
-          substack: { status: '❌', urls: ['https://workbrew.substack.com'], available: false }
-        },
-        tm: { status: 'none' },
-        seo: [],
-        premium: false,
-        recommendations: [],
-        parsed: {
-          cleanName: 'workbrew',
-          originalInput: rawInput,
-          wasConverted: false,
-          hadExtension: false
-        }
-      });
-    }
-    
-    if (slug.toLowerCase() === 'tonyblount') {
-      return NextResponse.json({
-        domains: {
-          '.com': '❌ live',    // .com has live site
-          '.co': '✅',          // Available
-          '.io': '✅',          // Available
-          '.net': '✅'          // Available
-        },
-        socials: {
-          x: { status: '❌', url: 'https://x.com/tonyblount', available: false },
-          instagram: { status: '✅', url: 'https://instagram.com/tonyblount', available: true },
-          youtube: { status: '✅', url: 'https://youtube.com/@tonyblount', available: true },
-          tiktok: { status: '✅', url: 'https://tiktok.com/@tonyblount', available: true },
-          substack: { status: '✅', urls: ['https://tonyblount.substack.com'], available: true }
-        },
-        tm: { status: 'none' },
-        seo: [],
-        premium: false,
-        recommendations: [],
-        parsed: {
-          cleanName: 'tonyblount',
-          originalInput: rawInput,
-          wasConverted: false,
-          hadExtension: false
-        }
-      });
-    }
-    
-    // DISABLE CACHE COMPLETELY - always run fresh checks
-    const cacheKey = `namesweep:${slug}:${Date.now()}`;
+    const cacheKey = `namesweep:${slug}`;
     
     const result = await getCached(
       cacheKey,
@@ -103,7 +44,7 @@ export async function GET(request: NextRequest) {
         
         // Check domains and social media in parallel
         const [domainResults, socials, tm, seo] = await Promise.all([
-          checkMultipleDomains(slug, tlds), // Now uses GoDaddy/Porkbun APIs
+          checkMultipleDomains(slug, tlds), // Now uses accurate DNS checking
           checkSocialsBalanced(slug),
           checkTrademark(slug),
           seoSummary(slug)
