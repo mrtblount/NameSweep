@@ -79,10 +79,11 @@ export async function searchSERP(query: string): Promise<SerpResult[]> {
 
 export async function searchUSPTO(brandName: string): Promise<USPTOResult> {
   try {
-    const query = `site:tsdr.uspto.gov "${brandName}"`;
+    // Search multiple USPTO domains and general trademark databases
+    const query = `"${brandName}" trademark (site:uspto.gov OR site:tmsearch.uspto.gov OR site:tsdr.uspto.gov OR "word mark" OR "trademark")`;
     const result = await serpApiRequest({
       q: query,
-      num: '3',
+      num: '10',  // Get more results to find relevant ones
       gl: 'us',
       hl: 'en'
     });
@@ -91,35 +92,67 @@ export async function searchUSPTO(brandName: string): Promise<USPTOResult> {
       return { status: 'none' };
     }
 
-    const firstResult = result.organic_results[0];
-    const title = firstResult.title.toLowerCase();
-    const snippet = firstResult.snippet?.toLowerCase() || '';
-    
+    // Check through all results for trademark information
     let status: 'live' | 'dead' | 'none' = 'none';
     let serial: string | undefined;
+    let foundTrademark = false;
     
-    if (title.includes('live') || snippet.includes('live')) {
+    for (const item of result.organic_results) {
+      const title = item.title.toLowerCase();
+      const snippet = item.snippet?.toLowerCase() || '';
+      const link = item.link.toLowerCase();
+      
+      // Check if this is a USPTO result or contains trademark info
+      const isUSPTO = link.includes('uspto.gov');
+      const hasTrademarkInfo = 
+        title.includes('trademark') || 
+        snippet.includes('trademark') ||
+        title.includes('word mark') ||
+        snippet.includes('word mark') ||
+        snippet.includes('registration');
+      
+      if (isUSPTO || hasTrademarkInfo) {
+        foundTrademark = true;
+        
+        // Check status
+        if (title.includes('live') || snippet.includes('live') || 
+            snippet.includes('registered') || snippet.includes('registration')) {
+          status = 'live';
+        } else if (title.includes('dead') || snippet.includes('dead') || 
+                   snippet.includes('cancelled') || snippet.includes('abandoned') ||
+                   snippet.includes('expired')) {
+          if (status !== 'live') { // Don't override live status
+            status = 'dead';
+          }
+        }
+        
+        // Extract serial number
+        if (!serial) {
+          const serialMatch = link.match(/serialnumber=(\d+)/i) || 
+                             title.match(/(\d{8})/) ||
+                             snippet.match(/serial\s*(?:no|number)?\.?\s*(\d{8})/i) ||
+                             snippet.match(/registration\s*(?:no|number)?\.?\s*(\d{7,8})/i);
+          if (serialMatch) {
+            serial = serialMatch[1];
+          }
+        }
+        
+        // If we found a live trademark, we can stop searching
+        if (status === 'live' && serial) {
+          break;
+        }
+      }
+    }
+    
+    // If we found trademark mentions but no clear status, assume it exists (live)
+    if (foundTrademark && status === 'none') {
       status = 'live';
-    } else if (title.includes('dead') || snippet.includes('cancelled') || snippet.includes('abandoned')) {
-      status = 'dead';
-    }
-    
-    const serialMatch = firstResult.link.match(/serialnumber=(\d+)/i) || 
-                       firstResult.title.match(/(\d{8})/);
-    if (serialMatch) {
-      serial = serialMatch[1];
-    }
-    
-    const classes: string[] = [];
-    const classMatch = snippet.match(/class(?:es)?\s*([\d,\s]+)/i);
-    if (classMatch) {
-      classes.push(...classMatch[1].split(/[,\s]+/).filter(c => c));
     }
 
     return {
       status,
       serial,
-      classes: classes.length > 0 ? classes : undefined
+      classes: undefined
     };
   } catch (error) {
     console.error('USPTO search error:', error);
