@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkMultipleDomains } from "@/lib/services/domain-checker";
+import { checkMultipleDomains } from "@/lib/services/whois-check";
 import { checkSocialsBalanced } from "@/lib/helpers/socials-balanced";
 import { checkTrademark } from "@/lib/helpers/trademark";
 import { seoSummary } from "@/lib/helpers/seo";
