@@ -50,11 +50,28 @@ export async function GET(request: NextRequest) {
           seoSummary(slug)
         ]);
         
-        // Format domains for response (keep full result objects)
-        const domains = domainResults;
+        // Format domains for response - extract just the status string
+        const domains: Record<string, string> = {};
         let hasPremium = false;
         
-        Object.values(domainResults).forEach((result) => {
+        Object.entries(domainResults).forEach(([tld, result]) => {
+          // Extract the status string and add display text if needed
+          if (result.status === '✅') {
+            domains[tld] = '✅';
+          } else if (result.status === '⚠️') {
+            domains[tld] = '⚠️';
+            hasPremium = true;
+          } else if (result.status === '❌') {
+            // Include whether it's live or parked
+            if (result.liveSite) {
+              domains[tld] = '❌ live';
+            } else {
+              domains[tld] = '❌ parked';
+            }
+          } else {
+            domains[tld] = result.status || '❓';
+          }
+          
           if (result.premium) hasPremium = true;
         });
         

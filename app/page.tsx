@@ -240,18 +240,26 @@ export default function Home() {
                     <div
                       key={tld}
                       className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                        status === "✅" 
+                        status === "✅" || status.startsWith('✅')
                           ? "status-available" 
-                          : status === "⚠️"
+                          : status === "⚠️" || status.startsWith('⚠️')
                           ? "status-premium"
                           : "status-taken"
                       }`}
                     >
-                      <div className="text-2xl mb-2">{status}</div>
+                      <div className="text-2xl mb-2">
+                        {status.startsWith('❌') ? '❌' : status.startsWith('⚠️') ? '⚠️' : status}
+                      </div>
                       <div className="font-semibold">
                         {result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}{tld}
                       </div>
-                      {status === "⚠️" && (
+                      {status === '❌ live' && (
+                        <div className="text-xs mt-1 text-neutral-600">Has live site</div>
+                      )}
+                      {status === '❌ parked' && (
+                        <div className="text-xs mt-1 text-neutral-600">Domain parked</div>
+                      )}
+                      {status.startsWith('⚠️') && (
                         <div className="text-xs mt-1 font-medium">Premium Domain</div>
                       )}
                     </div>
