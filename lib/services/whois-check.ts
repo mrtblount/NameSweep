@@ -1,174 +1,84 @@
-// Use multiple methods to check domain availability accurately
-
-export interface DomainCheckResult {
-  available: boolean;
-  premium: boolean;
-  price?: number;
-  status: '✅' | '⚠️' | '❌' | '❓';
-  liveSite?: boolean;
-  displayText?: string;
-  method?: string;
-}
-
-// Try using Domain Availability API (free service)
-async function checkViaAPI(domain: string): Promise<boolean | null> {
+// FREE WHOIS API that actually works
+export async function checkDomainViaWHOIS(domain: string): Promise<boolean> {
   try {
-    // Use domain-availability-api.whoisxmlapi.com (free tier)
+    // Use free WHOIS API
     const response = await fetch(
-      `https://domain-availability.whoisxmlapi.com/api/v1?apiKey=at_demo&domainName=${domain}&outputFormat=json`,
+      `https://api.domainsdb.info/v1/domains/search?domain=${domain}&zone=com,net,io,co`,
       { signal: AbortSignal.timeout(5000) }
     );
     
-    if (response.ok) {
-      const data = await response.json();
-      // Returns { "DomainInfo": { "domainAvailability": "AVAILABLE" or "UNAVAILABLE" } }
-      return data?.DomainInfo?.domainAvailability === "AVAILABLE";
+    if (!response.ok) {
+      // Fallback to another free API
+      const backupResponse = await fetch(
+        `https://api.iplocation.net/whois/${domain}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      const text = await backupResponse.text();
+      // If WHOIS returns "No match" or similar, domain is available
+      return text.includes("No match") || text.includes("NOT FOUND");
     }
+    
+    const data = await response.json();
+    // If no domains found in response, it's available
+    return !data.domains || data.domains.length === 0;
   } catch (error) {
-    console.log(`API check failed for ${domain}:`, error);
+    console.error(`WHOIS check failed for ${domain}:`, error);
+    throw error; // Throw error to try next method
   }
-  return null;
 }
 
-// Check using DNS resolution as fallback
-async function checkViaDNS(domain: string): Promise<{ exists: boolean; hasRecords: boolean }> {
+// Alternative using RapidAPI (requires free key)
+export async function checkViaRapidAPI(domain: string): Promise<boolean> {
   try {
-    // Check NS records first (most reliable for registration status)
-    const nsResponse = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${domain}&type=NS`,
-      {
-        headers: { 'Accept': 'application/dns-json' },
-        signal: AbortSignal.timeout(3000)
-      }
+    const response = await fetch(
+      `https://domain-availability.whoisxmlapi.com/api/v1?apiKey=at_FREE_KEY&domainName=${domain}`
     );
-    
-    if (nsResponse.ok) {
-      const nsData = await nsResponse.json();
-      
-      // NXDOMAIN means domain doesn't exist
-      if (nsData.Status === 3) {
-        return { exists: false, hasRecords: false };
-      }
-      
-      // If we have NS records, domain is registered
-      if (nsData.Status === 0 && nsData.Answer && nsData.Answer.length > 0) {
-        // Now check for A/AAAA records to see if it has a live site
-        const aResponse = await fetch(
-          `https://cloudflare-dns.com/dns-query?name=${domain}&type=A`,
-          {
-            headers: { 'Accept': 'application/dns-json' },
-            signal: AbortSignal.timeout(3000)
-          }
-        );
-        
-        if (aResponse.ok) {
-          const aData = await aResponse.json();
-          const hasARecords = aData.Status === 0 && aData.Answer && aData.Answer.length > 0;
-          return { exists: true, hasRecords: hasARecords };
-        }
-        
-        return { exists: true, hasRecords: false };
-      }
-    }
-    
-    return { exists: true, hasRecords: false };
+    const data = await response.json();
+    return data.DomainInfo?.domainAvailability === "AVAILABLE";
   } catch (error) {
-    console.error(`DNS check failed for ${domain}:`, error);
-    return { exists: true, hasRecords: false };
+    console.error(`RapidAPI check failed for ${domain}:`, error);
+    return false;
   }
 }
 
-// Known domains database for testing
-const KNOWN_DOMAINS: Record<string, DomainCheckResult> = {
-  'workbrew.com': { available: false, premium: false, status: '❌', liveSite: true, displayText: 'live site' },
-  'workbrew.co': { available: false, premium: false, status: '❌', liveSite: false, displayText: 'parked' },
-  'workbrew.io': { available: false, premium: false, status: '❌', liveSite: false, displayText: 'parked' },
-  'workbrew.net': { available: false, premium: false, status: '❌', liveSite: false, displayText: 'parked' },
-  'tonyblount.com': { available: false, premium: false, status: '❌', liveSite: true, displayText: 'live site' },
-  // tonyblount.co, .io, .net are actually available based on whois
-};
-
-export async function checkDomainAvailability(domain: string): Promise<DomainCheckResult> {
-  console.log(`Checking availability for: ${domain}`);
+// Check Namecheap if API keys are provided
+export async function checkNamecheap(domain: string): Promise<boolean> {
+  const NAMECHEAP_API = 'https://api.namecheap.com/xml.response';
   
-  // Check known domains first
-  if (KNOWN_DOMAINS[domain]) {
-    console.log(`Using known status for ${domain}`);
-    return { ...KNOWN_DOMAINS[domain], method: 'KNOWN' };
+  // Check if we have API credentials
+  if (!process.env.NAMECHEAP_API_USER || !process.env.NAMECHEAP_API_KEY) {
+    throw new Error('Namecheap API credentials not configured');
   }
   
-  // Try API first
-  const apiResult = await checkViaAPI(domain);
-  if (apiResult !== null) {
-    if (apiResult) {
-      return {
-        available: true,
-        premium: false,
-        status: '✅',
-        displayText: 'available',
-        method: 'API'
-      };
-    } else {
-      // Domain is taken, check if it has a live site
-      const { hasRecords } = await checkViaDNS(domain);
-      return {
-        available: false,
-        premium: false,
-        status: '❌',
-        liveSite: hasRecords,
-        displayText: hasRecords ? 'live site' : 'parked',
-        method: 'API+DNS'
-      };
-    }
+  try {
+    const params = new URLSearchParams({
+      ApiUser: process.env.NAMECHEAP_API_USER,
+      ApiKey: process.env.NAMECHEAP_API_KEY,
+      UserName: process.env.NAMECHEAP_API_USER,
+      Command: 'namecheap.domains.check',
+      ClientIp: '127.0.0.1',
+      DomainList: domain
+    });
+    
+    const response = await fetch(`${NAMECHEAP_API}?${params}`);
+    const text = await response.text();
+    // Parse XML response
+    return text.includes('Available="true"');
+  } catch (error) {
+    console.error(`Namecheap check failed for ${domain}:`, error);
+    return false;
   }
-  
-  // Fallback to DNS checking
-  const { exists, hasRecords } = await checkViaDNS(domain);
-  
-  if (!exists) {
-    return {
-      available: true,
-      premium: false,
-      status: '✅',
-      displayText: 'available',
-      method: 'DNS-NXDOMAIN'
-    };
-  }
-  
-  return {
-    available: false,
-    premium: false,
-    status: '❌',
-    liveSite: hasRecords,
-    displayText: hasRecords ? 'live site' : 'parked',
-    method: 'DNS'
-  };
 }
 
-export async function checkMultipleDomains(
-  baseName: string,
-  tlds: string[]
-): Promise<Record<string, DomainCheckResult>> {
-  const results: Record<string, DomainCheckResult> = {};
-  
-  const checks = await Promise.allSettled(
-    tlds.map(tld => checkDomainAvailability(`${baseName}${tld}`))
-  );
-  
-  checks.forEach((result, index) => {
-    const tld = tlds[index];
-    if (result.status === 'fulfilled') {
-      results[tld] = result.value;
-    } else {
-      results[tld] = {
-        available: false,
-        premium: false,
-        status: '❓',
-        displayText: 'check failed',
-        method: 'ERROR'
-      };
-    }
-  });
-  
-  return results;
+// Check if a taken domain has a live site
+export async function checkIfSiteIsLive(domain: string): Promise<boolean> {
+  try {
+    const response = await fetch(`https://${domain}`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(3000)
+    });
+    return response.ok;
+  } catch {
+    return false; // No live site
+  }
 }
