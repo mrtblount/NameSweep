@@ -5,28 +5,7 @@ export async function getCached<T>(
   fetcher: () => Promise<T>,
   ttl: number = 86400
 ): Promise<T> {
-  try {
-    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-      const cached = await kv.get<T>(key);
-      if (cached) {
-        console.log(`Cache hit for ${key}`);
-        return cached;
-      }
-    }
-  } catch (error) {
-    console.error("Cache read error:", error);
-  }
-  
-  console.log(`Cache miss for ${key}, fetching fresh data`);
-  const fresh = await fetcher();
-  
-  try {
-    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-      await kv.set(key, fresh, { ex: ttl });
-    }
-  } catch (error) {
-    console.error("Cache write error:", error);
-  }
-  
-  return fresh;
+  // COMPLETELY BYPASS CACHE FOR NOW - ALWAYS FETCH FRESH
+  console.log(`CACHE BYPASSED for ${key}, fetching fresh data`);
+  return await fetcher();
 }
