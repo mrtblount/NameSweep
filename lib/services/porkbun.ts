@@ -1,3 +1,5 @@
+import { checkDNSResolution } from './dns-check';
+
 interface PorkbunPricing {
   registration?: string;
   renewal?: string;
@@ -20,6 +22,8 @@ export interface DomainCheckResult {
   premium: boolean;
   price?: number;
   status: '✅' | '⚠️' | '❌' | '❓';
+  liveSite?: boolean;
+  displayText?: string;
   mock?: boolean;
 }
 
@@ -28,33 +32,93 @@ function getMockDomainResult(domain: string): DomainCheckResult {
   const tld = domain.substring(domain.lastIndexOf('.'));
   const name = domain.substring(0, domain.lastIndexOf('.'));
   
-  // Simulate some domains being taken
-  const commonNames = ['google', 'facebook', 'amazon', 'apple', 'microsoft', 'test', 'example'];
-  const isCommon = commonNames.some(common => name.toLowerCase().includes(common));
+  // Comprehensive list of known taken domains
+  const knownTakenWithSites = [
+    'google', 'facebook', 'amazon', 'apple', 'microsoft', 'workbrew', 
+    'twitter', 'netflix', 'youtube', 'instagram', 'linkedin', 'github',
+    'stackoverflow', 'reddit', 'wikipedia', 'ebay', 'paypal', 'dropbox',
+    'slack', 'zoom', 'adobe', 'salesforce', 'oracle', 'ibm', 'intel',
+    'nvidia', 'tesla', 'spotify', 'airbnb', 'uber', 'lyft', 'stripe'
+  ];
   
-  // .com domains are more likely to be taken
-  const comTakenChance = isCommon ? 0.95 : 0.3;
-  const otherTakenChance = isCommon ? 0.7 : 0.1;
+  // Domains that are likely registered but parked
+  const knownParked = [
+    'example', 'test', 'demo', 'sample'
+  ];
   
-  const takenChance = tld === '.com' ? comTakenChance : otherTakenChance;
-  const available = Math.random() > takenChance;
+  const nameLower = name.toLowerCase();
   
-  // Premium domains
-  const isPremium = available && Math.random() < 0.1;
-  const price = isPremium ? Math.floor(Math.random() * 2000) + 500 : undefined;
-  
-  let status: '✅' | '⚠️' | '❌' | '❓' = '❌';
-  if (available && !isPremium) {
-    status = '✅';
-  } else if (available && isPremium) {
-    status = '⚠️';
+  // Check if it's a known domain with a live site
+  if (knownTakenWithSites.some(known => nameLower === known || nameLower.startsWith(known))) {
+    return {
+      available: false,
+      premium: false,
+      status: '❌',
+      liveSite: true,
+      displayText: 'live site',
+      mock: true
+    };
   }
   
+  // Check if it's likely parked
+  if (knownParked.some(parked => nameLower === parked)) {
+    return {
+      available: false,
+      premium: false,
+      status: '❌',
+      liveSite: false,
+      displayText: 'parked',
+      mock: true
+    };
+  }
+  
+  // For workbrew specifically (as mentioned in the bug report)
+  if (nameLower === 'workbrew') {
+    // All workbrew TLDs are taken with live sites
+    return {
+      available: false,
+      premium: false,
+      status: '❌',
+      liveSite: true,
+      displayText: 'live site',
+      mock: true
+    };
+  }
+  
+  // Random simulation for unknown domains
+  // Make .com domains more likely to be taken
+  const comTakenChance = 0.5;
+  const ioTakenChance = 0.3;
+  const otherTakenChance = 0.2;
+  
+  let takenChance = otherTakenChance;
+  if (tld === '.com') takenChance = comTakenChance;
+  else if (tld === '.io') takenChance = ioTakenChance;
+  
+  const available = Math.random() > takenChance;
+  
+  if (!available) {
+    const hasLiveSite = Math.random() > 0.3; // Most taken domains have sites
+    return {
+      available: false,
+      premium: false,
+      status: '❌',
+      liveSite: hasLiveSite,
+      displayText: hasLiveSite ? 'live site' : 'parked',
+      mock: true
+    };
+  }
+  
+  // Available domains
+  const isPremium = Math.random() < 0.15;
+  const price = isPremium ? Math.floor(Math.random() * 2000) + 500 : undefined;
+  
   return {
-    available,
+    available: true,
     premium: isPremium,
     price,
-    status,
+    status: isPremium ? '⚠️' : '✅',
+    displayText: isPremium ? `premium $${price}` : 'available',
     mock: true
   };
 }
@@ -110,27 +174,53 @@ export async function checkDomainAvailability(
   domain: string
 ): Promise<DomainCheckResult> {
   try {
+    console.log(`Checking domain availability for: ${domain}`);
+    
     const result: PorkbunResponse = await porkbunRequest('/domain/check', {
       domain
     });
 
-    const available = result.available === 'available';
+    console.log(`Porkbun response for ${domain}:`, result);
+
+    // PRIMARY CHECK: Is the domain available for registration?
+    const available = result.available === 'available' || result.available === 'yes';
     const pricing = result.pricing;
     const isPremium = pricing?.premium || false;
     const price = pricing?.registration ? parseFloat(pricing.registration) : undefined;
 
-    let status: '✅' | '⚠️' | '❌' | '❓' = '❌';
-    if (available && !isPremium) {
-      status = '✅';
-    } else if (available && isPremium) {
-      status = '⚠️';
+    // If domain is AVAILABLE
+    if (available) {
+      // Check if it's premium pricing (>= $249)
+      if (isPremium || (price && price >= 249)) {
+        return {
+          available: true,
+          premium: true,
+          price,
+          status: '⚠️',
+          displayText: `premium $${price}`,
+          mock: false
+        };
+      } else {
+        return {
+          available: true,
+          premium: false,
+          price,
+          status: '✅',
+          displayText: 'available',
+          mock: false
+        };
+      }
     }
-
+    
+    // If domain is TAKEN - check if there's a live site
+    const hasLiveSite = await checkDNSResolution(domain);
+    
     return {
-      available,
-      premium: isPremium,
-      price,
-      status,
+      available: false,
+      premium: false,
+      status: '❌',
+      liveSite: hasLiveSite,
+      displayText: hasLiveSite ? 'live site' : 'parked',
       mock: false
     };
   } catch (error) {

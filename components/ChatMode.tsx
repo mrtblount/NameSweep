@@ -178,10 +178,10 @@ export default function ChatMode() {
           r.name,
           r.style,
           r.checkResults.score.total,
-          r.checkResults.domains['.com']?.status || '❌',
-          r.checkResults.domains['.co']?.status || '❌',
-          r.checkResults.domains['.io']?.status || '❌',
-          r.checkResults.domains['.net']?.status || '❌',
+          (typeof r.checkResults.domains['.com'] === 'object' ? r.checkResults.domains['.com'].status : r.checkResults.domains['.com']) || '❌',
+          (typeof r.checkResults.domains['.co'] === 'object' ? r.checkResults.domains['.co'].status : r.checkResults.domains['.co']) || '❌',
+          (typeof r.checkResults.domains['.io'] === 'object' ? r.checkResults.domains['.io'].status : r.checkResults.domains['.io']) || '❌',
+          (typeof r.checkResults.domains['.net'] === 'object' ? r.checkResults.domains['.net'].status : r.checkResults.domains['.net']) || '❌',
           r.checkResults.socials.x?.status || 'check',
           r.checkResults.socials.instagram?.status || 'check',
           r.checkResults.socials.youtube?.status || 'check',
@@ -200,7 +200,11 @@ export default function ChatMode() {
         content += `**Style:** ${r.style}\n`;
         content += `**Rationale:** ${r.checkResults.rationale}\n\n`;
         content += `### Availability\n`;
-        content += `- Domains: ${Object.entries(r.checkResults.domains).map(([tld, status]) => `${tld}: ${status.status}`).join(', ')}\n`;
+        content += `- Domains: ${Object.entries(r.checkResults.domains).map(([tld, info]) => {
+          const status = typeof info === 'object' ? info.status : info;
+          const displayText = typeof info === 'object' && info.displayText ? ` (${info.displayText})` : '';
+          return `${tld}: ${status}${displayText}`;
+        }).join(', ')}\n`;
         content += `- USPTO: ${r.checkResults.tm.status}\n\n`;
       });
     }
@@ -396,24 +400,45 @@ export default function ChatMode() {
                               Domain Availability
                             </h5>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                              {Object.entries(realData.domains).map(([tld, status]) => (
-                                <div
-                                  key={tld}
-                                  className={`p-3 rounded-lg border-2 transition ${
-                                    status === "✅" 
-                                      ? "status-available" 
-                                      : status === "⚠️"
-                                      ? "status-premium"
-                                      : "status-taken"
-                                  }`}
-                                >
-                                  <div className="text-lg mb-1">{status}</div>
-                                  <div className="font-semibold text-sm">{candidate.slug}{tld}</div>
-                                  {status === "⚠️" && (
-                                    <div className="text-xs mt-1">Premium</div>
-                                  )}
-                                </div>
-                              ))}
+                              {Object.entries(realData.domains).map(([tld, domainInfo]) => {
+                                const status = typeof domainInfo === 'object' ? domainInfo.status : domainInfo;
+                                const displayText = typeof domainInfo === 'object' ? domainInfo.displayText : null;
+                                const liveSite = typeof domainInfo === 'object' ? domainInfo.liveSite : false;
+                                const price = typeof domainInfo === 'object' ? domainInfo.price : null;
+                                
+                                return (
+                                  <div
+                                    key={tld}
+                                    className={`p-3 rounded-lg border-2 transition ${
+                                      status === "✅" 
+                                        ? "status-available" 
+                                        : status === "⚠️"
+                                        ? "status-premium"
+                                        : "status-taken"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-lg">{status}</span>
+                                      {liveSite && status === "❌" && (
+                                        <a 
+                                          href={`https://${candidate.slug}${tld}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary hover:text-primary-dark"
+                                        >
+                                          <ExternalLink className="w-4 h-4" />
+                                        </a>
+                                      )}
+                                    </div>
+                                    <div className="font-semibold text-sm">{candidate.slug}{tld}</div>
+                                    {displayText && (
+                                      <div className="text-xs mt-1 text-neutral-600">
+                                        {displayText}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
 
