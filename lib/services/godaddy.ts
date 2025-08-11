@@ -33,6 +33,8 @@ export async function checkGoDaddyAvailability(domain: string): Promise<DomainCh
 
   try {
     console.log(`Checking GoDaddy availability for: ${domain}`);
+    console.log('GoDaddy API URL:', `${GODADDY_API_BASE}/domains/available?domain=${domain}&checkType=FULL`);
+    console.log('Using API Key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT SET');
     
     const response = await fetch(
       `${GODADDY_API_BASE}/domains/available?domain=${domain}&checkType=FULL`,
@@ -48,6 +50,16 @@ export async function checkGoDaddyAvailability(domain: string): Promise<DomainCh
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`GoDaddy API error (${response.status}):`, errorText);
+      
+      // If authentication error, log it clearly
+      if (response.status === 401 || response.status === 403 || response.status === 400) {
+        console.error('GoDaddy Authentication Failed - Check API keys');
+        console.error('Current keys:', {
+          apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT SET',
+          apiSecret: apiSecret ? 'SET' : 'NOT SET'
+        });
+      }
+      
       throw new Error(`GoDaddy API error: ${response.status}`);
     }
 

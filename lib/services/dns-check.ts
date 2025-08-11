@@ -1,31 +1,52 @@
 export async function checkDNSResolution(domain: string): Promise<boolean> {
   try {
-    // Remove any protocol if present
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/^www\./, '');
     
-    // Try to resolve DNS using Cloudflare's DNS over HTTPS
-    const response = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${cleanDomain}&type=A`,
-      {
-        headers: { 
-          'Accept': 'application/dns-json'
-        },
-        signal: AbortSignal.timeout(3000) // 3 second timeout
-      }
-    );
+    // Try multiple DNS record types
+    const checks = await Promise.all([
+      // Check A records (IPv4)
+      fetch(`https://cloudflare-dns.com/dns-query?name=${cleanDomain}&type=A`, {
+        headers: { 'Accept': 'application/dns-json' },
+        signal: AbortSignal.timeout(3000)
+      }),
+      // Check AAAA records (IPv6)
+      fetch(`https://cloudflare-dns.com/dns-query?name=${cleanDomain}&type=AAAA`, {
+        headers: { 'Accept': 'application/dns-json' },
+        signal: AbortSignal.timeout(3000)
+      }),
+      // Check CNAME records
+      fetch(`https://cloudflare-dns.com/dns-query?name=${cleanDomain}&type=CNAME`, {
+        headers: { 'Accept': 'application/dns-json' },
+        signal: AbortSignal.timeout(3000)
+      })
+    ]);
     
-    if (!response.ok) {
-      return false;
+    for (const response of checks) {
+      if (response.ok) {
+        const data = await response.json();
+        // Status codes:
+        // 0 = NOERROR (found records)
+        // 2 = SERVFAIL (domain exists but no records - parked)
+        // 3 = NXDOMAIN (domain doesn't exist - available)
+        
+        // Has DNS records if status is 0 (NOERROR) and has answers
+        if (data.Status === 0 && data.Answer && data.Answer.length > 0) {
+          console.log(`DNS found for ${domain}: ${data.Answer[0].type} record`);
+          return true;
+        }
+        
+        // Status 2 means domain exists but has no DNS records (parked)
+        if (data.Status === 2) {
+          console.log(`Domain ${domain} exists but has no DNS records (parked)`);
+          // Continue checking other record types
+        }
+      }
     }
     
-    const data = await response.json();
-    
-    // Check if there are any A records (IP addresses)
-    // Status 0 = NOERROR (found), Status 3 = NXDOMAIN (not found)
-    return data.Status === 0 && data.Answer && data.Answer.length > 0;
+    console.log(`No DNS records found for ${domain}`);
+    return false;
   } catch (error) {
-    console.warn(`DNS resolution check failed for ${domain}:`, error);
-    // If DNS check fails, assume no resolution
+    console.warn(`DNS check failed for ${domain}:`, error);
     return false;
   }
 }
