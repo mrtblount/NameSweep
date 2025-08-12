@@ -23,6 +23,7 @@ export interface DomainCheckResult {
   price?: number;
   status: '✅' | '⚠️' | '❌' | '❓';
   liveSite?: boolean;
+  liveUrl?: string;
   displayText?: string;
   mock?: boolean;
 }
@@ -32,12 +33,12 @@ function getAccurateMockData(domain: string): DomainCheckResult {
   const name = domain.split('.')[0];
   const tld = '.' + domain.split('.').slice(1).join('.');
   
-  // Known taken domains WITH live sites
-  const takenWithSites: Record<string, boolean> = {
-    'workbrew.com': true,
-    'google.com': true,
-    'facebook.com': true,
-    'tonyblount.com': true
+  // Known taken domains WITH live sites (and their working URLs)
+  const takenWithSites: Record<string, string> = {
+    'workbrew.com': 'https://workbrew.com',
+    'google.com': 'https://google.com',
+    'facebook.com': 'https://facebook.com',
+    'tonyblount.com': 'https://www.tonyblount.com'  // Requires www
   };
   
   // Known taken but PARKED (no site)
@@ -61,6 +62,7 @@ function getAccurateMockData(domain: string): DomainCheckResult {
       premium: false,
       status: '❌',
       liveSite: true,
+      liveUrl: takenWithSites[domain],
       displayText: 'live site',
       mock: true
     };
@@ -186,14 +188,15 @@ async function checkPorkbunAvailability(
   }
   
   // If domain is TAKEN - check if there's a live site
-  const hasLiveSite = await checkIfSiteIsLive(domain);
+  const siteCheck = await checkIfSiteIsLive(domain);
   
   return {
     available: false,
     premium: false,
     status: '❌',
-    liveSite: hasLiveSite,
-    displayText: hasLiveSite ? 'live site' : 'parked',
+    liveSite: siteCheck.isLive,
+    liveUrl: siteCheck.workingUrl,
+    displayText: siteCheck.isLive ? 'live site' : 'parked',
     mock: false
   };
 }
@@ -214,13 +217,14 @@ export async function checkDomainAvailability(domain: string): Promise<DomainChe
       };
     } else {
       // Domain is taken - check if live site
-      const hasLiveSite = await checkIfSiteIsLive(domain);
+      const siteCheck = await checkIfSiteIsLive(domain);
       return {
         available: false,
         premium: false,
         status: '❌',
-        liveSite: hasLiveSite,
-        displayText: hasLiveSite ? 'live site' : 'parked',
+        liveSite: siteCheck.isLive,
+        liveUrl: siteCheck.workingUrl,
+        displayText: siteCheck.isLive ? 'live site' : 'parked',
         mock: false
       };
     }
@@ -240,13 +244,14 @@ export async function checkDomainAvailability(domain: string): Promise<DomainChe
         mock: false
       };
     } else {
-      const hasLiveSite = await checkIfSiteIsLive(domain);
+      const siteCheck = await checkIfSiteIsLive(domain);
       return {
         available: false,
         premium: false,
         status: '❌',
-        liveSite: hasLiveSite,
-        displayText: hasLiveSite ? 'live site' : 'parked',
+        liveSite: siteCheck.isLive,
+        liveUrl: siteCheck.workingUrl,
+        displayText: siteCheck.isLive ? 'live site' : 'parked',
         mock: false
       };
     }

@@ -56,7 +56,13 @@ export async function GET(request: NextRequest) {
         
         Object.entries(domainResults).forEach(([tld, result]) => {
           // For live sites, include the URL
-          if (result.status === '❌' && result.liveSite) {
+          if (result.status === '❌' && result.liveSite && result.liveUrl) {
+            domains[tld] = {
+              status: '❌ live',
+              url: result.liveUrl  // Use the actual working URL
+            };
+          } else if (result.status === '❌' && result.liveSite) {
+            // Fallback if liveUrl not provided
             domains[tld] = {
               status: '❌ live',
               url: `https://${slug}${tld}`

@@ -70,15 +70,35 @@ export async function checkNamecheap(domain: string): Promise<boolean> {
   }
 }
 
-// Check if a taken domain has a live site
-export async function checkIfSiteIsLive(domain: string): Promise<boolean> {
+// Check if a taken domain has a live site and return the working URL
+export async function checkIfSiteIsLive(domain: string): Promise<{ isLive: boolean; workingUrl?: string }> {
+  // First try without www
   try {
     const response = await fetch(`https://${domain}`, {
       method: 'HEAD',
-      signal: AbortSignal.timeout(3000)
+      signal: AbortSignal.timeout(3000),
+      redirect: 'follow'
     });
-    return response.ok;
+    if (response.ok) {
+      return { isLive: true, workingUrl: `https://${domain}` };
+    }
   } catch {
-    return false; // No live site
+    // Try with www if without didn't work
   }
+  
+  // Now try with www
+  try {
+    const responseWww = await fetch(`https://www.${domain}`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(3000),
+      redirect: 'follow'
+    });
+    if (responseWww.ok) {
+      return { isLive: true, workingUrl: `https://www.${domain}` };
+    }
+  } catch {
+    // Neither worked
+  }
+  
+  return { isLive: false };
 }
