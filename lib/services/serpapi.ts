@@ -10,6 +10,9 @@ interface SerpApiResult {
 
 const SERPAPI_BASE = 'https://serpapi.com/search.json';
 
+// Track rate limit status
+let rateLimitedUntil: number = 0;
+
 export interface SerpResult {
   title: string;
   domain: string;
@@ -30,6 +33,12 @@ async function serpApiRequest(params: Record<string, string>): Promise<SerpApiRe
     console.warn('SerpAPI key not configured, returning empty results');
     throw new Error('SerpAPI key not configured');
   }
+  
+  // Check if we're rate limited
+  if (Date.now() < rateLimitedUntil) {
+    console.warn('SerpAPI is rate limited, skipping request');
+    throw new Error('SerpAPI rate limited');
+  }
 
   try {
     const url = new URL(SERPAPI_BASE);
@@ -40,10 +49,17 @@ async function serpApiRequest(params: Record<string, string>): Promise<SerpApiRe
       url.searchParams.set(key, value);
     });
 
-    const response = await fetch(url.toString());
+    // Add timeout to prevent hanging
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(3000) // 3 second timeout
+    });
     
     if (!response.ok) {
       console.error(`SerpAPI error: ${response.statusText}`);
+      // If rate limited, mark as rate limited for 30 seconds
+      if (response.status === 429) {
+        rateLimitedUntil = Date.now() + 30000;
+      }
       throw new Error(`SerpAPI error: ${response.statusText}`);
     }
 

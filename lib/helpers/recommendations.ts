@@ -66,7 +66,7 @@ RECOMMENDATION: The .com domain is taken but other TLDs are available. Consider 
 ALTERNATIVES: ${name}Hub, ${name}Labs, Get${name}, ${name}ify, ${name}Co`;
 
     const chat = await openai.chat.completions.create({
-      model: "o3-mini",
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       max_tokens: 200,
       temperature: 0.8

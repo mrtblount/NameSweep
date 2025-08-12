@@ -72,32 +72,43 @@ export async function checkNamecheap(domain: string): Promise<boolean> {
 
 // Check if a taken domain has a live site and return the working URL
 export async function checkIfSiteIsLive(domain: string): Promise<{ isLive: boolean; workingUrl?: string }> {
-  // First try without www
-  try {
-    const response = await fetch(`https://${domain}`, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(3000),
-      redirect: 'follow'
-    });
-    if (response.ok) {
-      return { isLive: true, workingUrl: `https://${domain}` };
+  const urlsToCheck = [
+    `https://${domain}`,
+    `https://www.${domain}`,
+    `http://${domain}`,
+    `http://www.${domain}`
+  ];
+
+  for (const url of urlsToCheck) {
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(5000),
+        redirect: 'follow'
+      });
+      
+      // Check if we get any successful response
+      if (response.ok) {
+        return { isLive: true, workingUrl: url };
+      }
+      
+      // Check if it redirects to another domain (like apple.co -> apple.com)
+      // This is still a "live" site, just redirecting
+      const finalUrl = response.url || response.headers.get('location');
+      if (finalUrl && !finalUrl.includes(domain) && !finalUrl.includes('error') && !finalUrl.includes('404')) {
+        return { isLive: true, workingUrl: url };
+      }
+      
+      // Check for various status codes that indicate a live server
+      // 405 Method Not Allowed still means there's a live server responding
+      if (response.status === 200 || response.status === 301 || response.status === 302 || 
+          response.status === 405 || response.status === 403) {
+        return { isLive: true, workingUrl: url };
+      }
+    } catch (error: any) {
+      // Continue to next URL
+      continue;
     }
-  } catch {
-    // Try with www if without didn't work
-  }
-  
-  // Now try with www
-  try {
-    const responseWww = await fetch(`https://www.${domain}`, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(3000),
-      redirect: 'follow'
-    });
-    if (responseWww.ok) {
-      return { isLive: true, workingUrl: `https://www.${domain}` };
-    }
-  } catch {
-    // Neither worked
   }
   
   return { isLive: false };

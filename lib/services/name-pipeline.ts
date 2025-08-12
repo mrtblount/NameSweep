@@ -1,5 +1,5 @@
 import { generateNames, scoreNameFit, GeneratedName } from './openai-generator';
-import { checkDomainAvailability, checkMultipleDomains, DEFAULT_TLDS, EXTENDED_TLDS } from './porkbun';
+import { checkDomainAvailability, checkMultipleDomains, checkMultipleDomainsFast, DEFAULT_TLDS, EXTENDED_TLDS } from './porkbun';
 import { searchSERP, searchUSPTO } from './serpapi';
 import { calculateBrandFitScore, getConfigurableWeights } from './scoring';
 
@@ -107,39 +107,15 @@ export async function runNamePipeline(options: PipelineOptions) {
   const filteredNames = applyFilters(generatedNames);
   console.log(`Generated ${filteredNames.length} valid names`);
 
-  // Quick domain check (.com only for speed)
-  const stage1Candidates: NameCandidate[] = [];
-  
-  for (const name of filteredNames.slice(0, 30)) {
-    const slug = name.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    try {
-      const comCheck = await checkDomainAvailability(`${slug}.com`);
-      
-      // Keep if .com is available OR we'll check alternates later
-      const passedStage1 = comCheck.available || 
-                          (comCheck.premium && comCheck.price !== undefined && comCheck.price < premiumThreshold);
-      
-      stage1Candidates.push({
-        ...name,
-        slug,
-        passedStage1: passedStage1 || false
-      });
-    } catch (error) {
-      console.warn(`Domain check failed for ${slug}, including anyway:`, error);
-      // If domain check fails, include the candidate anyway
-      stage1Candidates.push({
-        ...name,
-        slug,
-        passedStage1: true // Pass it through to stage 2
-      });
-    }
-  }
+  // Skip domain checking in Stage 1 for speed - just prepare candidates
+  const stage1Candidates = filteredNames.slice(0, 10).map(name => ({
+    ...name,
+    slug: name.name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+    passedStage1: true
+  }));
 
-  // Keep top 15 candidates that passed stage 1
-  const stage2Candidates = stage1Candidates
-    .filter(c => c.passedStage1)
-    .slice(0, 15);
+  // Use all 10 candidates for Stage 2
+  const stage2Candidates = stage1Candidates;
 
   console.log(`Stage 1 complete: ${stage2Candidates.length} candidates for deep checks`);
 
@@ -153,9 +129,9 @@ export async function runNamePipeline(options: PipelineOptions) {
   const deepCheckedCandidates = await Promise.all(
     stage2Candidates.map(async (candidate) => {
       try {
-        // Parallel checks with individual error handling
+        // Parallel checks with individual error handling - use FAST version for speed
         const [domains, tm, seo, socials] = await Promise.all([
-          checkMultipleDomains(candidate.slug, tlds).catch(err => {
+          checkMultipleDomainsFast(candidate.slug, tlds).catch(err => {
             console.warn(`Domain check failed for ${candidate.slug}:`, err);
             // Return mock data if real check fails
             return tlds.reduce((acc, tld) => {
@@ -165,11 +141,11 @@ export async function runNamePipeline(options: PipelineOptions) {
           }),
           searchUSPTO(candidate.name).catch(err => {
             console.warn(`USPTO check failed for ${candidate.name}:`, err);
-            return { status: 'none' };
+            return { status: 'none' }; // Default to no trademark
           }),
           searchSERP(candidate.name).catch(err => {
             console.warn(`SEO check failed for ${candidate.name}:`, err);
-            return [];
+            return []; // Empty SEO results if SerpAPI fails
           }),
           checkSocialsUserInitiated(candidate.slug)
         ]);

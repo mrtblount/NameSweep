@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, TrendingUp, Shield, Zap, ArrowRight, Sparkles, MessageSquare, Info, Globe, Users, BarChart3, ChevronRight, ExternalLink, AlertCircle } from "lucide-react";
+import { Search, TrendingUp, Shield, Zap, ArrowRight, Sparkles, MessageSquare, Info, Globe, Users, BarChart3, ChevronRight, ExternalLink, AlertCircle, ToggleLeft, ToggleRight } from "lucide-react";
 import ChatMode from "@/components/ChatMode";
 
 interface DomainInfo {
@@ -41,6 +41,8 @@ export default function Home() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<'check' | 'generate'>('check');
+  const [extendedTlds, setExtendedTlds] = useState(false);
+  const [loadingExtended, setLoadingExtended] = useState(false);
 
   const handleSearch = async (searchName?: string) => {
     const nameToSearch = searchName || brandName;
@@ -55,7 +57,11 @@ export default function Home() {
     setResult(null);
 
     try {
-      const res = await fetch(`/api/check?name=${encodeURIComponent(nameToSearch)}`);
+      const url = extendedTlds 
+        ? `/api/check?name=${encodeURIComponent(nameToSearch)}&extended=true`
+        : `/api/check?name=${encodeURIComponent(nameToSearch)}`;
+      
+      const res = await fetch(url);
       const data = await res.json();
       
       if (searchName) {
@@ -67,6 +73,37 @@ export default function Home() {
       }
 
       setResult(data);
+      
+      // If extended TLDs are enabled and we got the basic results, fetch AI-suggested TLDs
+      if (extendedTlds && data.domains) {
+        setLoadingExtended(true);
+        try {
+          const extRes = await fetch('/api/suggest-tlds-fast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              domainName: data.parsed?.cleanName || nameToSearch,
+              currentResults: data.domains 
+            })
+          });
+          
+          if (extRes.ok) {
+            const extData = await extRes.json();
+            // Merge extended TLDs with existing results
+            setResult(prev => ({
+              ...prev!,
+              domains: {
+                ...prev!.domains,
+                ...extData.suggestedTlds
+              }
+            }));
+          }
+        } catch (extErr) {
+          console.error('Failed to get extended TLDs:', extErr);
+        } finally {
+          setLoadingExtended(false);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -199,6 +236,25 @@ export default function Home() {
                     )}
                   </button>
                 </div>
+                
+                {/* Extended TLDs Toggle */}
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-neutral-200">
+                  <button
+                    onClick={() => setExtendedTlds(!extendedTlds)}
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
+                    {extendedTlds ? (
+                      <ToggleRight className="w-5 h-5 text-primary" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5 text-neutral-400" />
+                    )}
+                    <span>Extended TLDs</span>
+                  </button>
+                  <span className="text-xs text-neutral-500">
+                    {extendedTlds ? "AI will suggest 10 relevant TLDs" : "Showing .com, .co, .io, .net only"}
+                  </span>
+                </div>
+                
                 {error && (
                   <div className="mt-4 p-3 bg-error/10 border border-error/20 rounded-lg text-error text-sm flex items-center">
                     <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -240,6 +296,12 @@ export default function Home() {
                 <h3 className="heading-3 mb-6 flex items-center gap-2">
                   <Globe className="w-6 h-6 text-primary" />
                   Domain Availability
+                  {loadingExtended && (
+                    <span className="text-sm text-neutral-500 ml-auto flex items-center">
+                      <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary mr-2"></span>
+                      AI suggesting more TLDs...
+                    </span>
+                  )}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {Object.entries(result.domains).map(([tld, domainData]) => {

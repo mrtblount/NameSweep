@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { runNamePipeline } from "@/lib/services/name-pipeline";
 import { getCached } from "@/lib/helpers/cache";
 
-export const runtime = "edge";
+// Removed Edge runtime to allow DNS and external API calls
+// export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
   try {

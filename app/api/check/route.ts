@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkMultipleDomains } from "@/lib/services/porkbun";
+import { checkMultipleDomains, checkMultipleDomainsFast } from "@/lib/services/porkbun";
 import { checkSocialsBalanced } from "@/lib/helpers/socials-balanced";
 import { checkTrademark } from "@/lib/helpers/trademark";
 import { seoSummary } from "@/lib/helpers/seo";
@@ -43,9 +43,14 @@ export async function GET(request: NextRequest) {
         const extendedCheck = searchParams.get("extended") === "true";
         const tlds = getTLDsToCheck(parsedInput, extendedCheck);
         
+        // Use fast checking when extended mode is on (we'll get detailed info later)
+        const checkDomains = extendedCheck 
+          ? checkMultipleDomainsFast(slug, tlds)
+          : checkMultipleDomains(slug, tlds);
+        
         // Check domains and social media in parallel
         const [domainResults, socials, tm, seo] = await Promise.all([
-          checkMultipleDomains(slug, tlds),
+          checkDomains,
           checkSocialsBalanced(slug),
           checkTrademark(slug),
           seoSummary(slug)
