@@ -1,3 +1,6 @@
+// CRITICAL: This service MUST return real domain availability data
+// It should NEVER lie or return fake data
+
 import { checkDNSResolution } from './dns-check';
 
 const GODADDY_API_BASE = 'https://api.godaddy.com/v1';
@@ -22,53 +25,60 @@ export interface DomainCheckResult {
   mock?: boolean;
 }
 
+/**
+ * Check domain availability using GoDaddy API
+ * CRITICAL: This must return accurate data - never guess or lie about availability
+ */
 export async function checkGoDaddyAvailability(domain: string): Promise<DomainCheckResult> {
   const apiKey = process.env.GODADDY_API_KEY;
   const apiSecret = process.env.GODADDY_API_SECRET;
   
+  // Log environment variable status for debugging
+  console.log(`[GoDaddy] Checking ${domain}`);
+  console.log(`[GoDaddy] ENV status: KEY=${apiKey?.substring(0,5)}..., SECRET=${apiSecret ? 'SET' : 'NOT SET'}`);
+  
   if (!apiKey || !apiSecret) {
-    console.warn('GoDaddy API credentials not configured');
+    console.error('[GoDaddy] CRITICAL: API credentials missing!');
+    console.error('[GoDaddy] Make sure GODADDY_API_KEY and GODADDY_API_SECRET are set in Vercel Environment Variables');
     throw new Error('GoDaddy API credentials not configured');
   }
 
   try {
-    console.log(`Checking GoDaddy availability for: ${domain}`);
-    console.log('GoDaddy API URL:', `${GODADDY_API_BASE}/domains/available?domain=${domain}&checkType=FULL`);
-    console.log('Using API Key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT SET');
+    const url = `${GODADDY_API_BASE}/domains/available?domain=${domain}&checkType=FULL`;
+    console.log(`[GoDaddy] Calling: ${url}`);
     
-    const response = await fetch(
-      `${GODADDY_API_BASE}/domains/available?domain=${domain}&checkType=FULL`,
-      {
-        headers: {
-          'Authorization': `sso-key ${apiKey}:${apiSecret}`,
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `sso-key ${apiKey}:${apiSecret}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
-    );
+    });
+
+    console.log(`[GoDaddy] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`GoDaddy API error (${response.status}):`, errorText);
+      console.error(`[GoDaddy] API error (${response.status}):`, errorText);
       
-      // If authentication error, log it clearly
-      if (response.status === 401 || response.status === 403 || response.status === 400) {
-        console.error('GoDaddy Authentication Failed - Check API keys');
-        console.error('Current keys:', {
-          apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT SET',
-          apiSecret: apiSecret ? 'SET' : 'NOT SET'
-        });
+      if (response.status === 401 || response.status === 403) {
+        console.error('[GoDaddy] Authentication failed - check if API keys are correct');
+        console.error('[GoDaddy] Make sure you are using PRODUCTION keys, not OTE');
       }
       
       throw new Error(`GoDaddy API error: ${response.status}`);
     }
 
     const data: GoDaddyAvailableResponse = await response.json();
-    console.log(`GoDaddy response for ${domain}:`, data);
+    console.log(`[GoDaddy] Success! Response:`, data);
     
-    if (data.available) {
-      const price = data.price || 0;
+    // If domain is AVAILABLE
+    if (data.available === true) {
+      const price = data.price ? Math.round(data.price / 1000000) : 0; // Convert from micros
       const isPremium = price >= 249;
+      
+      console.log(`[GoDaddy] ${domain} is AVAILABLE. Price: $${price}`);
       
       return {
         available: true,
@@ -78,31 +88,57 @@ export async function checkGoDaddyAvailability(domain: string): Promise<DomainCh
         displayText: isPremium ? `premium $${price}` : 'available',
         mock: false
       };
-    } else {
-      // Domain is taken - check if has live site
-      const hasLiveSite = await checkDNSResolution(domain);
+    } 
+    
+    // Domain is TAKEN
+    console.log(`[GoDaddy] ${domain} is TAKEN. Checking for live site...`);
+    
+    let hasLiveSite = false;
+    
+    // Try to access the site
+    try {
+      const siteResponse = await fetch(`https://${domain}`, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(3000),
+        redirect: 'follow'
+      });
       
-      return {
-        available: false,
-        premium: false,
-        status: '❌',
-        liveSite: hasLiveSite,
-        displayText: hasLiveSite ? 'live site' : 'parked',
-        mock: false
-      };
+      hasLiveSite = siteResponse.ok || (siteResponse.status >= 300 && siteResponse.status < 400);
+      console.log(`[GoDaddy] Site check: ${hasLiveSite ? 'LIVE' : 'NO SITE'}`);
+    } catch (error) {
+      console.log(`[GoDaddy] Site check failed:`, error);
+      // Try DNS as fallback
+      try {
+        hasLiveSite = await checkDNSResolution(domain);
+        console.log(`[GoDaddy] DNS check: ${hasLiveSite ? 'HAS DNS' : 'NO DNS'}`);
+      } catch {
+        hasLiveSite = false;
+      }
     }
+    
+    return {
+      available: false,
+      premium: false,
+      status: '❌',
+      liveSite: hasLiveSite,
+      displayText: hasLiveSite ? 'has live site' : 'parked',
+      mock: false
+    };
+    
   } catch (error) {
-    console.error(`GoDaddy check failed for ${domain}:`, error);
+    console.error(`[GoDaddy] FAILED for ${domain}:`, error);
     throw error;
   }
 }
 
+// For bulk checking
 export async function checkMultipleDomainsGoDaddy(
   baseName: string,
   tlds: string[]
 ): Promise<Record<string, DomainCheckResult>> {
   const results: Record<string, DomainCheckResult> = {};
   
+  // Check all domains in parallel
   const checks = await Promise.allSettled(
     tlds.map(tld => checkGoDaddyAvailability(`${baseName}${tld}`))
   );
@@ -112,12 +148,13 @@ export async function checkMultipleDomainsGoDaddy(
     if (result.status === 'fulfilled') {
       results[tld] = result.value;
     } else {
-      console.warn(`GoDaddy check failed for ${baseName}${tld}:`, result.reason);
+      console.error(`[GoDaddy] Failed for ${baseName}${tld}:`, result.reason);
+      // Don't guess - return unable to verify
       results[tld] = {
         available: false,
         premium: false,
         status: '❓',
-        displayText: 'check failed',
+        displayText: 'unable to verify',
         mock: true
       };
     }

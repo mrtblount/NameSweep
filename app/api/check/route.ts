@@ -7,7 +7,8 @@ import { generateRecommendations } from "@/lib/helpers/recommendations";
 import { getCached } from "@/lib/helpers/cache";
 import { parseUserInput, getTLDsToCheck } from "@/lib/helpers/parse-input";
 
-export const runtime = "edge";
+// Removed Edge runtime to allow external API calls to WHOIS services
+// export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,41 +45,67 @@ export async function GET(request: NextRequest) {
         
         // Check domains and social media in parallel
         const [domainResults, socials, tm, seo] = await Promise.all([
-          checkMultipleDomains(slug, tlds), // Now uses accurate DNS checking
+          checkMultipleDomains(slug, tlds),
           checkSocialsBalanced(slug),
           checkTrademark(slug),
           seoSummary(slug)
         ]);
         
-        // Format domains for response - include full info for live sites
+        // Format domains for response - handle all statuses properly
         const domains: Record<string, any> = {};
         let hasPremium = false;
         
         Object.entries(domainResults).forEach(([tld, result]) => {
-          // For live sites, include the URL
-          if (result.status === '❌' && result.liveSite && result.liveUrl) {
-            domains[tld] = {
-              status: '❌ live',
-              url: result.liveUrl  // Use the actual working URL
-            };
-          } else if (result.status === '❌' && result.liveSite) {
-            // Fallback if liveUrl not provided
-            domains[tld] = {
-              status: '❌ live',
-              url: `https://${slug}${tld}`
-            };
-          } else if (result.status === '✅') {
-            domains[tld] = '✅';
-          } else if (result.status === '⚠️') {
-            domains[tld] = '⚠️';
-            hasPremium = true;
-          } else if (result.status === '❌') {
-            domains[tld] = '❌ parked';
-          } else {
-            domains[tld] = result.status || '❓';
+          // Handle each status type
+          switch(result.status) {
+            case '❌':
+              // Domain is taken
+              if (result.liveSite) {
+                domains[tld] = {
+                  status: '❌',
+                  displayText: 'has live site',
+                  url: result.liveUrl || `https://${slug}${tld}`
+                };
+              } else {
+                domains[tld] = {
+                  status: '❌',
+                  displayText: 'parked'
+                };
+              }
+              break;
+              
+            case '✅':
+              // Domain is available
+              domains[tld] = {
+                status: '✅',
+                displayText: 'available'
+              };
+              break;
+              
+            case '⚠️':
+              // Premium domain
+              domains[tld] = {
+                status: '⚠️',
+                displayText: result.displayText || `premium${result.price ? ` $${result.price}` : ''}`
+              };
+              hasPremium = true;
+              break;
+              
+            case '❓':
+              // Unable to verify
+              domains[tld] = {
+                status: '❓',
+                displayText: 'unable to verify'
+              };
+              break;
+              
+            default:
+              // Fallback
+              domains[tld] = {
+                status: '❓',
+                displayText: 'unable to verify'
+              };
           }
-          
-          if (result.premium) hasPremium = true;
         });
         
         // Generate recommendations based on availability
@@ -109,7 +136,7 @@ export async function GET(request: NextRequest) {
           }
         };
       },
-      86400
+      86400 // Cache for 24 hours
     );
     
     return NextResponse.json(result);

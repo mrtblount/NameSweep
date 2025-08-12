@@ -4,8 +4,14 @@ import { useState } from "react";
 import { Search, TrendingUp, Shield, Zap, ArrowRight, Sparkles, MessageSquare, Info, Globe, Users, BarChart3, ChevronRight, ExternalLink, AlertCircle } from "lucide-react";
 import ChatMode from "@/components/ChatMode";
 
+interface DomainInfo {
+  status: '✅' | '⚠️' | '❌' | '❓';
+  displayText?: string;
+  url?: string;
+}
+
 interface CheckResult {
-  domains: Record<string, string>;
+  domains: Record<string, string | DomainInfo>;
   socials: {
     x: { status: string; url?: string; checkRequired?: boolean };
     instagram: { status: string; url?: string; checkRequired?: boolean };
@@ -236,42 +242,59 @@ export default function Home() {
                   Domain Availability
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.entries(result.domains).map(([tld, domainInfo]) => {
-                    const status = typeof domainInfo === 'object' ? (domainInfo as any).status : domainInfo;
-                    const url = typeof domainInfo === 'object' ? (domainInfo as any).url : null;
+                  {Object.entries(result.domains).map(([tld, domainData]) => {
+                    // Handle both string and object formats
+                    const isObject = typeof domainData === 'object' && domainData !== null;
+                    const status = isObject ? (domainData as DomainInfo).status : domainData as string;
+                    const displayText = isObject ? (domainData as DomainInfo).displayText : '';
+                    const url = isObject ? (domainData as DomainInfo).url : null;
+                    
+                    // Determine styling based on status
+                    const getStatusClass = () => {
+                      if (status === '✅') return 'status-available';
+                      if (status === '⚠️') return 'status-premium';
+                      if (status === '❌') return 'status-taken';
+                      if (status === '❓') return 'status-unknown';
+                      return 'status-unknown';
+                    };
                     
                     return (
                       <div
                         key={tld}
-                        className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                          status === "✅" || status.startsWith('✅')
-                            ? "status-available" 
-                            : status === "⚠️" || status.startsWith('⚠️')
-                            ? "status-premium"
-                            : "status-taken"
-                        }`}
+                        className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${getStatusClass()}`}
                       >
                         <div className="text-2xl mb-2">
-                          {status.startsWith('❌') ? '❌' : status.startsWith('⚠️') ? '⚠️' : status}
+                          {status}
                         </div>
                         <div className="font-semibold">
                           {result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}{tld}
                         </div>
-                        {status === '❌ live' && url && (
+                        
+                        {/* Display text based on status */}
+                        {displayText && (
+                          <div className="text-xs mt-1 text-neutral-600">
+                            {displayText}
+                          </div>
+                        )}
+                        
+                        {/* Show link for live sites */}
+                        {status === '❌' && displayText === 'has live site' && url && (
                           <a 
                             href={url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-xs mt-1 text-blue-600 hover:text-blue-800 underline block"
+                            className="text-xs mt-1 text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
                           >
-                            Has live site →
+                            Visit site
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         )}
-                        {status === '❌ parked' && (
-                          <div className="text-xs mt-1 text-neutral-600">Domain parked</div>
-                        )}
-                        {status.startsWith('⚠️') && (
-                          <div className="text-xs mt-1 font-medium">Premium Domain</div>
+                        
+                        {/* Special handling for unable to verify */}
+                        {status === '❓' && (
+                          <div className="text-xs mt-1 text-orange-600 font-medium">
+                            Unable to verify - check manually
+                          </div>
                         )}
                       </div>
                     );

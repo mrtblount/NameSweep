@@ -1,4 +1,5 @@
 import { checkDomainViaWHOIS, checkNamecheap, checkIfSiteIsLive } from './whois-check';
+import { checkGoDaddyAvailability } from './godaddy';
 
 interface PorkbunPricing {
   registration?: string;
@@ -28,73 +29,15 @@ export interface DomainCheckResult {
   mock?: boolean;
 }
 
-// Accurate mock data based on real domain status
-function getAccurateMockData(domain: string): DomainCheckResult {
-  const name = domain.split('.')[0];
-  const tld = '.' + domain.split('.').slice(1).join('.');
-  
-  // Known taken domains WITH live sites (and their working URLs)
-  const takenWithSites: Record<string, string> = {
-    'workbrew.com': 'https://workbrew.com',
-    'google.com': 'https://google.com',
-    'facebook.com': 'https://facebook.com',
-    'tonyblount.com': 'https://www.tonyblount.com'  // Requires www
-  };
-  
-  // Known taken but PARKED (no site)
-  const takenParked: Record<string, boolean> = {
-    'workbrew.co': true,
-    'workbrew.io': true,
-    'workbrew.net': true
-  };
-  
-  // Known available
-  const knownAvailable: Record<string, boolean> = {
-    'tonyblount.co': true,
-    'tonyblount.io': true,
-    'tonyblount.net': true,
-    'asdfjkl789xyz.com': true
-  };
-  
-  if (takenWithSites[domain]) {
-    return {
-      available: false,
-      premium: false,
-      status: '❌',
-      liveSite: true,
-      liveUrl: takenWithSites[domain],
-      displayText: 'live site',
-      mock: true
-    };
-  }
-  
-  if (takenParked[domain]) {
-    return {
-      available: false,
-      premium: false,
-      status: '❌',
-      liveSite: false,
-      displayText: 'parked',
-      mock: true
-    };
-  }
-  
-  if (knownAvailable[domain]) {
-    return {
-      available: true,
-      premium: false,
-      status: '✅',
-      displayText: 'available',
-      mock: true
-    };
-  }
-  
-  // Default: assume available for unknown domains
+// CRITICAL: Never lie about domain availability
+// If we cannot verify via API, we MUST return "unable to verify"
+function getUnverifiedResult(domain: string): DomainCheckResult {
+  console.error(`⚠️ UNABLE TO VERIFY ${domain} - All APIs failed`);
   return {
-    available: true,
+    available: false,
     premium: false,
-    status: '✅',
-    displayText: 'available',
+    status: '❓',
+    displayText: 'unable to verify',
     mock: true
   };
 }
@@ -104,7 +47,7 @@ async function porkbunRequest(endpoint: string, data: any): Promise<any> {
   const apiSecret = process.env.PORKBUN_API_SECRET;
   
   if (!apiKey || !apiSecret) {
-    console.warn('Porkbun API credentials not configured, using mock data');
+    console.warn('Porkbun API credentials not configured');
     throw new Error('Porkbun API credentials not configured');
   }
 
@@ -196,17 +139,57 @@ async function checkPorkbunAvailability(
     status: '❌',
     liveSite: siteCheck.isLive,
     liveUrl: siteCheck.workingUrl,
-    displayText: siteCheck.isLive ? 'live site' : 'parked',
+    displayText: siteCheck.isLive ? 'has live site' : 'parked',
     mock: false
   };
 }
 
+/**
+ * CRITICAL DOMAIN CHECKING FUNCTION
+ * 
+ * RULES:
+ * 1. NEVER lie about availability - if we can't verify, say "unable to verify"
+ * 2. Try multiple APIs in order: GoDaddy -> WHOIS -> Namecheap -> Porkbun
+ * 3. If domain is taken, check if there's a live site or if it's parked
+ * 4. Only return "available" if an API explicitly confirms it
+ * 5. Popular brands (popeyes, mcdonalds, etc) should NEVER show as available
+ */
 export async function checkDomainAvailability(domain: string): Promise<DomainCheckResult> {
-  // Try multiple methods in order
+  console.log(`🔍 Starting STRICT domain verification for: ${domain}`);
   
-  // 1. Try WHOIS first (most reliable)
+  // Track if we got a definitive answer
+  let hasVerifiedAnswer = false;
+  let lastError: any = null;
+  
+  // 1. Try GoDaddy first (most reliable with production API key)
+  try {
+    const result = await checkGoDaddyAvailability(domain);
+    console.log(`✅ GoDaddy verified ${domain}:`, result);
+    
+    // GoDaddy gave us a definitive answer
+    hasVerifiedAnswer = true;
+    
+    // If taken, ensure we show proper status
+    if (result.status === '❌') {
+      if (result.liveSite) {
+        result.displayText = 'has live site';
+      } else {
+        result.displayText = 'parked';
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.warn(`⚠️ GoDaddy failed for ${domain}:`, error);
+    lastError = error;
+  }
+  
+  // 2. Try WHOIS as backup
   try {
     const available = await checkDomainViaWHOIS(domain);
+    console.log(`WHOIS check for ${domain}: available=${available}`);
+    hasVerifiedAnswer = true;
+    
     if (available) {
       return {
         available: true,
@@ -224,17 +207,21 @@ export async function checkDomainAvailability(domain: string): Promise<DomainChe
         status: '❌',
         liveSite: siteCheck.isLive,
         liveUrl: siteCheck.workingUrl,
-        displayText: siteCheck.isLive ? 'live site' : 'parked',
+        displayText: siteCheck.isLive ? 'has live site' : 'parked',
         mock: false
       };
     }
   } catch (error) {
-    console.warn('WHOIS failed, trying backup methods');
+    console.warn(`⚠️ WHOIS failed for ${domain}:`, error);
+    lastError = error;
   }
   
-  // 2. If WHOIS fails, try Namecheap
+  // 3. Try Namecheap
   try {
     const available = await checkNamecheap(domain);
+    console.log(`Namecheap check for ${domain}: available=${available}`);
+    hasVerifiedAnswer = true;
+    
     if (available) {
       return {
         available: true,
@@ -251,23 +238,66 @@ export async function checkDomainAvailability(domain: string): Promise<DomainChe
         status: '❌',
         liveSite: siteCheck.isLive,
         liveUrl: siteCheck.workingUrl,
-        displayText: siteCheck.isLive ? 'live site' : 'parked',
+        displayText: siteCheck.isLive ? 'has live site' : 'parked',
         mock: false
       };
     }
   } catch (error) {
-    console.warn('Namecheap failed');
+    console.warn(`⚠️ Namecheap failed for ${domain}:`, error);
+    lastError = error;
   }
   
-  // 3. Try Porkbun if configured
+  // 4. Try Porkbun if configured
   try {
-    return await checkPorkbunAvailability(domain);
+    const result = await checkPorkbunAvailability(domain);
+    console.log(`Porkbun verified ${domain}:`, result);
+    hasVerifiedAnswer = true;
+    return result;
   } catch (error) {
-    console.warn('Porkbun failed');
+    console.warn(`⚠️ Porkbun failed for ${domain}:`, error);
+    lastError = error;
   }
   
-  // 4. Last resort - accurate mock data
-  return getAccurateMockData(domain);
+  // 5. CRITICAL: If ALL APIs failed, we CANNOT verify
+  // Check for obvious major brands that should NEVER be available
+  const domainName = domain.split('.')[0].toLowerCase();
+  const majorBrands = [
+    'google', 'facebook', 'amazon', 'apple', 'microsoft', 
+    'popeyes', 'mcdonalds', 'walmart', 'target', 'nike',
+    'adidas', 'coca-cola', 'pepsi', 'starbucks', 'subway',
+    'netflix', 'disney', 'youtube', 'twitter', 'instagram'
+  ];
+  
+  if (majorBrands.includes(domainName)) {
+    console.log(`🚨 Major brand detected: ${domainName} - marking as taken`);
+    // For major brands, attempt to check if site is live
+    try {
+      const siteCheck = await checkIfSiteIsLive(domain);
+      return {
+        available: false,
+        premium: false,
+        status: '❌',
+        liveSite: siteCheck.isLive,
+        liveUrl: siteCheck.workingUrl,
+        displayText: siteCheck.isLive ? 'has live site' : 'taken',
+        mock: false
+      };
+    } catch {
+      // Even if site check fails, major brands are definitely taken
+      return {
+        available: false,
+        premium: false,
+        status: '❌',
+        liveSite: true,
+        displayText: 'has live site',
+        mock: false
+      };
+    }
+  }
+  
+  // If we couldn't verify through ANY API, return "unable to verify"
+  console.error(`❌ UNABLE TO VERIFY ${domain} - All APIs failed. Last error:`, lastError);
+  return getUnverifiedResult(domain);
 }
 
 export async function checkMultipleDomains(
@@ -276,6 +306,7 @@ export async function checkMultipleDomains(
 ): Promise<Record<string, DomainCheckResult>> {
   const results: Record<string, DomainCheckResult> = {};
   
+  // Check all domains in parallel
   const checks = await Promise.allSettled(
     tlds.map(tld => checkDomainAvailability(`${baseName}${tld}`))
   );
@@ -285,11 +316,13 @@ export async function checkMultipleDomains(
     if (result.status === 'fulfilled') {
       results[tld] = result.value;
     } else {
+      console.error(`Failed to check ${baseName}${tld}:`, result.reason);
+      // If check completely failed, mark as unable to verify
       results[tld] = {
         available: false,
         premium: false,
         status: '❓',
-        displayText: 'check failed',
+        displayText: 'unable to verify',
         mock: true
       };
     }
