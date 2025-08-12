@@ -236,34 +236,46 @@ export default function Home() {
                   Domain Availability
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.entries(result.domains).map(([tld, status]) => (
-                    <div
-                      key={tld}
-                      className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                        status === "✅" || status.startsWith('✅')
-                          ? "status-available" 
-                          : status === "⚠️" || status.startsWith('⚠️')
-                          ? "status-premium"
-                          : "status-taken"
-                      }`}
-                    >
-                      <div className="text-2xl mb-2">
-                        {status.startsWith('❌') ? '❌' : status.startsWith('⚠️') ? '⚠️' : status}
+                  {Object.entries(result.domains).map(([tld, domainInfo]) => {
+                    const status = typeof domainInfo === 'object' ? domainInfo.status : domainInfo;
+                    const url = typeof domainInfo === 'object' ? domainInfo.url : null;
+                    
+                    return (
+                      <div
+                        key={tld}
+                        className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${
+                          status === "✅" || status.startsWith('✅')
+                            ? "status-available" 
+                            : status === "⚠️" || status.startsWith('⚠️')
+                            ? "status-premium"
+                            : "status-taken"
+                        }`}
+                      >
+                        <div className="text-2xl mb-2">
+                          {status.startsWith('❌') ? '❌' : status.startsWith('⚠️') ? '⚠️' : status}
+                        </div>
+                        <div className="font-semibold">
+                          {result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}{tld}
+                        </div>
+                        {status === '❌ live' && url && (
+                          <a 
+                            href={url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs mt-1 text-blue-600 hover:text-blue-800 underline block"
+                          >
+                            Has live site →
+                          </a>
+                        )}
+                        {status === '❌ parked' && (
+                          <div className="text-xs mt-1 text-neutral-600">Domain parked</div>
+                        )}
+                        {status.startsWith('⚠️') && (
+                          <div className="text-xs mt-1 font-medium">Premium Domain</div>
+                        )}
                       </div>
-                      <div className="font-semibold">
-                        {result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}{tld}
-                      </div>
-                      {status === '❌ live' && (
-                        <div className="text-xs mt-1 text-neutral-600">Has live site</div>
-                      )}
-                      {status === '❌ parked' && (
-                        <div className="text-xs mt-1 text-neutral-600">Domain parked</div>
-                      )}
-                      {status.startsWith('⚠️') && (
-                        <div className="text-xs mt-1 font-medium">Premium Domain</div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

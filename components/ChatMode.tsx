@@ -402,39 +402,38 @@ export default function ChatMode() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                               {Object.entries(realData.domains).map(([tld, domainInfo]) => {
                                 const status = typeof domainInfo === 'object' ? domainInfo.status : domainInfo;
-                                const displayText = typeof domainInfo === 'object' ? domainInfo.displayText : null;
-                                const liveSite = typeof domainInfo === 'object' ? domainInfo.liveSite : false;
-                                const price = typeof domainInfo === 'object' ? domainInfo.price : null;
+                                const url = typeof domainInfo === 'object' ? domainInfo.url : null;
                                 
                                 return (
                                   <div
                                     key={tld}
                                     className={`p-3 rounded-lg border-2 transition ${
-                                      status === "✅" 
+                                      status === "✅" || status.startsWith('✅')
                                         ? "status-available" 
-                                        : status === "⚠️"
+                                        : status === "⚠️" || status.startsWith('⚠️')
                                         ? "status-premium"
                                         : "status-taken"
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-lg">{status}</span>
-                                      {liveSite && status === "❌" && (
-                                        <a 
-                                          href={`https://${candidate.slug}${tld}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-primary hover:text-primary-dark"
-                                        >
-                                          <ExternalLink className="w-4 h-4" />
-                                        </a>
-                                      )}
+                                      <span className="text-lg">{status.startsWith('❌') ? '❌' : status.startsWith('⚠️') ? '⚠️' : status}</span>
                                     </div>
                                     <div className="font-semibold text-sm">{candidate.slug}{tld}</div>
-                                    {displayText && (
-                                      <div className="text-xs mt-1 text-neutral-600">
-                                        {displayText}
-                                      </div>
+                                    {status === '❌ live' && url && (
+                                      <a 
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs mt-1 text-blue-600 hover:text-blue-800 underline block"
+                                      >
+                                        Has live site →
+                                      </a>
+                                    )}
+                                    {status === '❌ parked' && (
+                                      <div className="text-xs mt-1 text-neutral-600">Domain parked</div>
+                                    )}
+                                    {status.startsWith('⚠️') && (
+                                      <div className="text-xs mt-1 font-medium">Premium Domain</div>
                                     )}
                                   </div>
                                 );
