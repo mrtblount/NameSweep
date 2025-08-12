@@ -3,7 +3,7 @@ export interface SocialCheckResult {
   available: boolean;
   platform: string;
   url: string;
-  status?: number;
+  status: number;  // Made required to fix TypeScript error
 }
 
 // Check a single URL and return availability based on status code

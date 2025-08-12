@@ -401,8 +401,8 @@ export default function ChatMode() {
                             </h5>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                               {Object.entries(realData.domains).map(([tld, domainInfo]) => {
-                                const status = typeof domainInfo === 'object' ? domainInfo.status : domainInfo;
-                                const url = typeof domainInfo === 'object' ? domainInfo.url : null;
+                                const status = typeof domainInfo === 'object' ? (domainInfo as any).status : domainInfo;
+                                const url = typeof domainInfo === 'object' ? (domainInfo as any).url : null;
                                 
                                 return (
                                   <div
