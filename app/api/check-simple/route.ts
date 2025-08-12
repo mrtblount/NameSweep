@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
     const tm = { status: 'none', serial: null };
     
     // Mock SEO
-    const seo = [];
+    const seo: any[] = [];
     
     return NextResponse.json({
       domains,
