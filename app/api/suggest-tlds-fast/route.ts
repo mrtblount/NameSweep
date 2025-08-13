@@ -58,7 +58,7 @@ async function checkDomainsFast(domainName: string, tlds: string[]): Promise<Rec
         fetch(`https://domain-availability.whoisxmlapi.com/api/v1?apiKey=${apiKey}&domainName=${domain}&outputFormat=JSON`, {
           signal: AbortSignal.timeout(500) // 500ms timeout per domain
         }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+        new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
       ]);
 
       if (!response.ok) {
