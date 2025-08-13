@@ -186,8 +186,12 @@ export async function runNamePipeline(options: PipelineOptions) {
 
   // Sort by BrandFit score and return top N
   const rankedCandidates = deepCheckedCandidates
-    .filter(c => c.checkResults?.score)
-    .sort((a, b) => (b.checkResults?.score?.total || 0) - (a.checkResults?.score?.total || 0))
+    .filter(c => 'checkResults' in c && c.checkResults?.score)
+    .sort((a, b) => {
+      const aScore = 'checkResults' in a ? a.checkResults?.score?.total || 0 : 0;
+      const bScore = 'checkResults' in b ? b.checkResults?.score?.total || 0 : 0;
+      return bScore - aScore;
+    })
     .slice(0, maxCandidates);
 
   console.log(`Pipeline complete: ${rankedCandidates.length} final candidates`);
