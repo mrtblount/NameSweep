@@ -145,10 +145,10 @@ export async function POST(req: NextRequest) {
     // Get AI category if available (but don't wait long)
     const aiResponse = await Promise.race([
       aiPromise,
-      new Promise(resolve => setTimeout(() => resolve({ choices: [{ message: { content: `${category} domain` } }] }), 500))
+      new Promise<any>(resolve => setTimeout(() => resolve({ choices: [{ message: { content: `${category} domain` } }] }), 500))
     ]);
     
-    const aiCategory = aiResponse?.choices?.[0]?.message?.content || `${category} domain`;
+    const aiCategory = (aiResponse as any)?.choices?.[0]?.message?.content || `${category} domain`;
 
     return NextResponse.json({
       category: aiCategory,
