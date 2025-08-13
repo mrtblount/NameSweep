@@ -134,7 +134,7 @@ export async function checkMultipleDomainsFast(
           result: {
             available: false,
             premium: false,
-            status: '❓',
+            status: '❓' as const,
             displayText: 'unable to verify',
             mock: true
           }
