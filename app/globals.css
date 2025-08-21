@@ -251,21 +251,37 @@
     @apply border-transparent bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400;
   }
 
-  /* Status indicators */
+  /* Status indicators - High contrast design */
   .status-available {
-    @apply bg-green-50 border-green-200 text-green-700 dark:bg-green-900/10 dark:border-green-900/20 dark:text-green-400;
+    @apply bg-green-50/50 border-green-500 text-foreground dark:bg-green-950/20 dark:border-green-500 dark:text-foreground;
+  }
+  
+  .status-available svg {
+    @apply text-green-600 dark:text-green-500;
   }
   
   .status-taken {
-    @apply bg-red-50 border-red-200 text-red-700 dark:bg-red-900/10 dark:border-red-900/20 dark:text-red-400;
+    @apply bg-red-50/50 border-red-500 text-foreground dark:bg-red-950/20 dark:border-red-500 dark:text-foreground;
+  }
+  
+  .status-taken svg {
+    @apply text-red-600 dark:text-red-500;
   }
   
   .status-premium {
-    @apply bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/10 dark:border-yellow-900/20 dark:text-yellow-400;
+    @apply bg-amber-50/50 border-amber-500 text-foreground dark:bg-amber-950/20 dark:border-amber-500 dark:text-foreground;
+  }
+  
+  .status-premium svg {
+    @apply text-amber-600 dark:text-amber-500;
   }
   
   .status-unknown {
-    @apply bg-muted border-border text-muted-foreground;
+    @apply bg-muted border-border text-foreground;
+  }
+  
+  .status-unknown svg {
+    @apply text-muted-foreground;
   }
 
   /* Navigation */

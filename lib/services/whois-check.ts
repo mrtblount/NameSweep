@@ -79,14 +79,24 @@ export async function checkIfSiteIsLive(domain: string): Promise<{ isLive: boole
     `http://www.${domain}`
   ];
 
-  for (const url of urlsToCheck) {
+  // Check all URLs in parallel with shorter timeout
+  const checkPromises = urlsToCheck.map(url => 
+    fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(1500), // Reduced from 5000ms to 1500ms
+      redirect: 'follow'
+    })
+    .then(response => ({ url, response, error: null }))
+    .catch(error => ({ url, response: null, error }))
+  );
+
+  const results = await Promise.all(checkPromises);
+
+  // Check results for any successful response
+  for (const { url, response, error } of results) {
+    if (!response) continue;
+    
     try {
-      const response = await fetch(url, {
-        method: 'HEAD',
-        signal: AbortSignal.timeout(5000),
-        redirect: 'follow'
-      });
-      
       // Check if we get any successful response
       if (response.ok) {
         return { isLive: true, workingUrl: url };
