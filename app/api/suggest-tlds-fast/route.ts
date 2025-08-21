@@ -42,10 +42,19 @@ function quickCategorize(domainName: string): string {
 
 // Ultra-fast domain checking with minimal overhead
 async function checkDomainsFast(domainName: string, tlds: string[]): Promise<Record<string, any>> {
-  const apiKey = process.env.WHOISXML_API_KEY;
+  const rapidApiKey = process.env.RAPIDAPI_DOMAINR_KEY;
   
-  if (!apiKey) {
-    throw new Error('WhoisXMLAPI key not configured');
+  if (!rapidApiKey) {
+    // If no API key, return all as unknown status
+    console.log('No Domainr API key, returning suggested TLDs without verification');
+    const results: Record<string, any> = {};
+    tlds.forEach(tld => {
+      results[tld] = {
+        status: '❓',
+        displayText: 'suggested'
+      };
+    });
+    return results;
   }
 
   // Create batch of fetch promises for Domain Availability API only (faster than WHOIS)
@@ -53,12 +62,16 @@ async function checkDomainsFast(domainName: string, tlds: string[]): Promise<Rec
     const domain = `${domainName}${tld}`;
     
     try {
-      // Direct API call without the overhead of the full checkWhoisXMLAPI function
+      // Use Domainr API for checking
       const response = await Promise.race([
-        fetch(`https://domain-availability.whoisxmlapi.com/api/v1?apiKey=${apiKey}&domainName=${domain}&outputFormat=JSON`, {
-          signal: AbortSignal.timeout(500) // 500ms timeout per domain
+        fetch(`https://domainr.p.rapidapi.com/v2/status?domain=${domain}`, {
+          headers: {
+            'X-RapidAPI-Key': rapidApiKey!,
+            'X-RapidAPI-Host': 'domainr.p.rapidapi.com'
+          },
+          signal: AbortSignal.timeout(1000) // 1s timeout per domain
         }),
-        new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 500))
+        new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1000))
       ]);
 
       if (!response.ok) {
@@ -66,15 +79,56 @@ async function checkDomainsFast(domainName: string, tlds: string[]): Promise<Rec
       }
 
       const data = await response.json();
-      const availability = data.DomainInfo?.domainAvailability;
+      const domainStatus = data.status?.[0];
       
-      return {
-        tld,
-        result: {
-          status: availability === 'AVAILABLE' ? '✅' : '❌',
-          displayText: availability === 'AVAILABLE' ? 'available' : 'taken'
+      if (!domainStatus) {
+        return {
+          tld,
+          result: {
+            status: '❓',
+            displayText: 'unknown'
+          }
+        };
+      }
+      
+      const summary = domainStatus.summary;
+      const statusText = domainStatus.status || '';
+      
+      if (summary === 'inactive' || summary === 'unknown') {
+        return {
+          tld,
+          result: {
+            status: '✅',
+            displayText: 'available'
+          }
+        };
+      } else if (summary === 'active') {
+        // Check if it's premium/marketed
+        if (statusText.includes('marketed') || statusText.includes('priced')) {
+          return {
+            tld,
+            result: {
+              status: '⚠️',
+              displayText: 'premium'
+            }
+          };
         }
-      };
+        return {
+          tld,
+          result: {
+            status: '❌',
+            displayText: 'taken'
+          }
+        };
+      } else {
+        return {
+          tld,
+          result: {
+            status: '❓',
+            displayText: 'unknown'
+          }
+        };
+      }
     } catch (error) {
       // Quick fallback - assume taken if we can't check
       return {

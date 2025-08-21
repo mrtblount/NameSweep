@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Search, TrendingUp, Shield, Zap, ArrowRight, Sparkles, MessageSquare, Info, Globe, Users, BarChart3, ChevronRight, ExternalLink, AlertCircle, ToggleLeft, ToggleRight } from "lucide-react";
+import { Search, TrendingUp, Shield, Zap, ArrowRight, Sparkles, MessageSquare, Info, Globe, Users, BarChart3, ChevronRight, ExternalLink, AlertCircle, ToggleLeft, ToggleRight, CheckCircle, XCircle, AlertTriangle, HelpCircle, Loader2, Plus } from "lucide-react";
 import ChatMode from "@/components/ChatMode";
+import { SocialAvailability } from "@/components/social-availability";
 
 interface DomainInfo {
-  status: '✅' | '⚠️' | '❌' | '❓';
+  status: 'available' | 'premium' | 'taken' | 'unknown';
   displayText?: string;
   url?: string;
 }
@@ -111,6 +112,54 @@ export default function Home() {
     }
   };
 
+  // Function to only fetch additional AI-suggested domains
+  const fetchExtendedDomains = async () => {
+    if (!result || !result.domains) {
+      console.log('No result to extend');
+      return;
+    }
+    
+    const nameToSearch = result.parsed?.cleanName || brandName;
+    console.log('Fetching extended domains for:', nameToSearch);
+    
+    setExtendedTlds(true);
+    setLoadingExtended(true);
+    
+    try {
+      const extRes = await fetch('/api/suggest-tlds-fast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          domainName: nameToSearch,
+          currentResults: result.domains 
+        })
+      });
+      
+      console.log('Extended domains response:', extRes.status);
+      
+      if (extRes.ok) {
+        const extData = await extRes.json();
+        console.log('Got extended domains:', extData);
+        
+        // Merge extended TLDs with existing results
+        setResult(prev => ({
+          ...prev!,
+          domains: {
+            ...prev!.domains,
+            ...extData.suggestedTlds
+          }
+        }));
+      } else {
+        console.error('Failed to fetch extended domains:', extRes.status);
+      }
+    } catch (err) {
+      console.error('Failed to get extended TLDs:', err);
+      setExtendedTlds(false); // Reset on error
+    } finally {
+      setLoadingExtended(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
@@ -118,9 +167,9 @@ export default function Home() {
         <div className="container">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-2">
-              <span className="font-display font-bold text-xl gradient-text">NameSweep</span>
+              <span className="text-xl font-bold">NameSweep</span>
               <span className="badge badge-success">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse mr-1"></span>
                 Live
               </span>
             </div>
@@ -150,11 +199,11 @@ export default function Home() {
               AI-Powered Domain Intelligence
             </div>
             
-            <h1 className="heading-1 mb-6 gradient-text-animated">
+            <h1 className="mb-6 gradient-text-animated">
               Find Your Perfect Domain Name in Seconds
             </h1>
             
-            <p className="text-body mb-8 max-w-2xl mx-auto">
+            <p className="lead mb-8 max-w-2xl mx-auto">
               Check domain availability, social media handles, trademarks, and SEO competition instantly. 
               Powered by AI to help you make smart branding decisions.
             </p>
@@ -197,10 +246,10 @@ export default function Home() {
             </div>
             
             <div className="text-center mb-8">
-              <h2 className="heading-3 mb-2">
+              <h2 className="mb-2">
                 {mode === 'check' ? 'Check Your Brand Name' : 'Generate Brand Names with AI'}
               </h2>
-              <p className="text-neutral-600">
+              <p className="text-muted-foreground">
                 {mode === 'check' 
                   ? 'Enter any name to check availability across domains, social media, and trademarks' 
                   : 'Describe your business and let AI generate the perfect brand names'}
@@ -225,7 +274,7 @@ export default function Home() {
                   >
                     {loading ? (
                       <span className="flex items-center">
-                        <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Checking...
                       </span>
                     ) : (
@@ -238,20 +287,20 @@ export default function Home() {
                 </div>
                 
                 {/* Extended TLDs Toggle */}
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-neutral-200">
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                   <button
                     onClick={() => setExtendedTlds(!extendedTlds)}
-                    className="flex items-center gap-2 text-sm font-medium"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground"
                   >
                     {extendedTlds ? (
                       <ToggleRight className="w-5 h-5 text-primary" />
                     ) : (
-                      <ToggleLeft className="w-5 h-5 text-neutral-400" />
+                      <ToggleLeft className="w-5 h-5 text-muted-foreground" />
                     )}
-                    <span>Extended TLDs</span>
+                    <span>Explore more results</span>
                   </button>
-                  <span className="text-xs text-neutral-500">
-                    {extendedTlds ? "AI will suggest 10 relevant TLDs" : "Showing .com, .co, .io, .net only"}
+                  <span className="text-xs text-muted-foreground">
+                    {extendedTlds ? "AI will suggest 10+ domain options" : "Standard domains (.com, .co, .io, .net)"}
                   </span>
                 </div>
                 
@@ -283,7 +332,7 @@ export default function Home() {
                       <p className="font-medium">
                         Converted to domain name: <span className="font-bold">{result.parsed.cleanName}</span>
                       </p>
-                      <p className="text-sm text-neutral-600 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         Original input: &ldquo;{result.parsed.originalInput}&rdquo;
                       </p>
                     </div>
@@ -293,40 +342,71 @@ export default function Home() {
 
               {/* Domains */}
               <div className="card p-6">
-                <h3 className="heading-3 mb-6 flex items-center gap-2">
-                  <Globe className="w-6 h-6 text-primary" />
-                  Domain Availability
-                  {loadingExtended && (
-                    <span className="text-sm text-neutral-500 ml-auto flex items-center">
-                      <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary mr-2"></span>
-                      AI suggesting more TLDs...
-                    </span>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="flex items-center gap-2">
+                    <Globe className="w-5 h-5 text-primary" />
+                    Domain Availability
+                  </h3>
+                  {!extendedTlds && !loadingExtended && result.domains && (
+                    <button
+                      onClick={fetchExtendedDomains}
+                      className="btn-primary btn-sm flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Let AI suggest 10 more relevant domain options</span>
+                    </button>
                   )}
-                </h3>
+                  {loadingExtended && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-md">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm font-medium">AI is finding more domain options...</span>
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {Object.entries(result.domains).map(([tld, domainData]) => {
                     // Handle both string and object formats
                     const isObject = typeof domainData === 'object' && domainData !== null;
-                    const status = isObject ? (domainData as DomainInfo).status : domainData as string;
+                    const statusEmoji = isObject ? (domainData as DomainInfo).status : domainData as string;
                     const displayText = isObject ? (domainData as DomainInfo).displayText : '';
                     const url = isObject ? (domainData as DomainInfo).url : null;
                     
+                    // Map emoji status to new status type
+                    const getStatus = () => {
+                      if (statusEmoji === '✅' || statusEmoji === 'available') return 'available';
+                      if (statusEmoji === '⚠️' || statusEmoji === 'premium') return 'premium';
+                      if (statusEmoji === '❌' || statusEmoji === 'taken') return 'taken';
+                      if (statusEmoji === '❓' || statusEmoji === 'unknown') return 'unknown';
+                      return 'unknown';
+                    };
+                    
+                    const status = getStatus();
+                    
                     // Determine styling based on status
                     const getStatusClass = () => {
-                      if (status === '✅') return 'status-available';
-                      if (status === '⚠️') return 'status-premium';
-                      if (status === '❌') return 'status-taken';
-                      if (status === '❓') return 'status-unknown';
+                      if (status === 'available') return 'status-available';
+                      if (status === 'premium') return 'status-premium';
+                      if (status === 'taken') return 'status-taken';
+                      if (status === 'unknown') return 'status-unknown';
                       return 'status-unknown';
+                    };
+                    
+                    // Get status icon
+                    const getStatusIcon = () => {
+                      if (status === 'available') return <CheckCircle className="w-6 h-6" />;
+                      if (status === 'premium') return <AlertTriangle className="w-6 h-6" />;
+                      if (status === 'taken') return <XCircle className="w-6 h-6" />;
+                      if (status === 'unknown') return <HelpCircle className="w-6 h-6" />;
+                      return <HelpCircle className="w-6 h-6" />;
                     };
                     
                     return (
                       <div
                         key={tld}
-                        className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${getStatusClass()}`}
+                        className={`p-4 rounded-lg border-2 transition-all hover:scale-[1.02] ${getStatusClass()}`}
                       >
-                        <div className="text-2xl mb-2">
-                          {status}
+                        <div className="mb-2">
+                          {getStatusIcon()}
                         </div>
                         <div className="font-semibold">
                           {result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}{tld}
@@ -334,13 +414,13 @@ export default function Home() {
                         
                         {/* Display text based on status */}
                         {displayText && (
-                          <div className="text-xs mt-1 text-neutral-600">
+                          <div className="text-xs mt-1 opacity-80">
                             {displayText}
                           </div>
                         )}
                         
                         {/* Show link for live sites */}
-                        {status === '❌' && displayText === 'has live site' && url && (
+                        {status === 'taken' && displayText === 'has live site' && url && (
                           <a 
                             href={url} 
                             target="_blank" 
@@ -353,8 +433,8 @@ export default function Home() {
                         )}
                         
                         {/* Special handling for unable to verify */}
-                        {status === '❓' && (
-                          <div className="text-xs mt-1 text-orange-600 font-medium">
+                        {status === 'unknown' && (
+                          <div className="text-xs mt-1 font-medium">
                             Unable to verify - check manually
                           </div>
                         )}
@@ -366,74 +446,17 @@ export default function Home() {
 
               {/* Social Media */}
               <div className="card p-6">
-                <h3 className="heading-3 mb-6 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-primary" />
-                  Social Media Handles
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {Object.entries({
-                    'X': result.socials.x,
-                    'Instagram': result.socials.instagram,
-                    'YouTube': result.socials.youtube,
-                    'TikTok': result.socials.tiktok,
-                    'Substack': result.socials.substack
-                  }).map(([platform, data]) => (
-                    <div
-                      key={platform}
-                      className={`p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                        data?.status === '✅' 
-                          ? 'status-available'
-                          : data?.status === '❌'
-                          ? 'status-taken'
-                          : 'status-unknown'
-                      }`}
-                    >
-                      <div className="font-semibold text-sm mb-1">{platform}</div>
-                      <div className="text-2xl mb-2">
-                        {data?.status === '✅' ? '✅' : data?.status === '❌' ? '❌' : '❓'}
-                      </div>
-                      <div className="text-xs">
-                        {data?.status === '✅' ? 'Available' : 
-                         data?.status === '❌' ? 'Taken' : 
-                         'Check Manually'}
-                      </div>
-                      {data && ('url' in data || 'urls' in data) && (
-                        <div className="mt-2">
-                          {'urls' in data && data.urls ? (
-                            data.urls.map((url: string, i: number) => (
-                              <a 
-                                key={i}
-                                href={url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                              >
-                                Verify
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ))
-                          ) : 'url' in data && data.url ? (
-                            <a 
-                              href={data.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline flex items-center gap-1"
-                            >
-                              Verify
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <SocialAvailability 
+                  username={result?.parsed?.cleanName || brandName.toLowerCase().replace(/[^a-z0-9]/g, '')}
+                  platforms={['instagram', 'twitter', 'youtube', 'tiktok', 'github', 'linkedin', 'reddit']}
+                  autoCheck={true}
+                />
               </div>
 
               {/* Trademark */}
               <div className="card p-6">
-                <h3 className="heading-3 mb-6 flex items-center gap-2">
-                  <Shield className="w-6 h-6 text-primary" />
+                <h3 className="mb-6 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-primary" />
                   USPTO Trademark Status
                 </h3>
                 <div className={`p-4 rounded-lg border-2 ${
@@ -465,8 +488,8 @@ export default function Home() {
 
               {/* SEO Competition */}
               <div className="card p-6">
-                <h3 className="heading-3 mb-6 flex items-center gap-2">
-                  <BarChart3 className="w-6 h-6 text-primary" />
+                <h3 className="mb-6 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
                   SEO Competition Analysis
                 </h3>
                 <div className="space-y-3">
@@ -491,8 +514,8 @@ export default function Home() {
               {/* AI Recommendations */}
               {result.recommendations && (
                 <div className="card-primary p-6">
-                  <h3 className="heading-3 mb-4 flex items-center gap-2">
-                    <Sparkles className="w-6 h-6 text-primary" />
+                  <h3 className="mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
                     AI Recommendations
                   </h3>
                   <div className="space-y-4">
@@ -512,7 +535,7 @@ export default function Home() {
                     
                     {result.recommendations.names && result.recommendations.names.length > 0 && (
                       <div>
-                        <p className="text-sm text-neutral-600 mb-3">
+                        <p className="text-sm text-muted-foreground mb-3">
                           Try these alternative names:
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -542,7 +565,7 @@ export default function Home() {
       <section className="section bg-gradient-primary text-white">
         <div className="container">
           <div className="text-center max-w-3xl mx-auto">
-            <h2 className="heading-2 mb-4">
+            <h2 className="mb-4 text-white">
               Ready to Secure Your Perfect Domain?
             </h2>
             <p className="text-lg mb-8 opacity-90">
@@ -565,7 +588,7 @@ export default function Home() {
         <div className="container">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <div className="font-display font-bold text-xl gradient-text mb-4">
+              <div className="text-xl font-bold mb-4">
                 NameSweep
               </div>
               <p className="text-sm text-neutral-600">
